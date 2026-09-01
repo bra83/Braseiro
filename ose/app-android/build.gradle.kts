@@ -15,7 +15,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets["main"].assets.srcDir("../web-ui/dist")
-    sourceSets["main"].assets.srcDir("../assets")
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 

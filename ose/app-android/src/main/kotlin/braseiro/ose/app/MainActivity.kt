@@ -10,7 +10,7 @@ import android.webkit.WebViewClient
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
-    internal var lastBridgeMessage: BridgeEnvelopeMetadata? = null
+    var lastBridgeMessage: BridgeEnvelopeMetadata? = null
         private set
 
     @SuppressLint("SetJavaScriptEnabled")
