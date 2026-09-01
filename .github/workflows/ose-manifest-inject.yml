@@ -18,18 +18,40 @@ jobs:
         with:
           ref: ose-batch-a
           fetch-depth: 0
-      - name: Diagnose staged payload
+      - name: Verify staged payload parts
         shell: bash
         run: |
           set -euo pipefail
-          for p in ose/assets/.manifest_payload/part*.b64; do
-            echo "$(basename "$p") bytes=$(tr -d '\n\r' < "$p" | wc -c) sha=$(tr -d '\n\r' < "$p" | sha256sum | awk '{print $1}')"
-          done
+          check() { p="$1"; bytes="$2"; sha="$3"; test "$(wc -c < "$p")" = "$bytes"; echo "$sha  $p" | sha256sum --check --strict; }
+          check ose/assets/.manifest_payload/part00.b64 8000 b4b88204b0ff30a22fafda1f10e96d43126bb401a9271e7f36f9b2e2eef03ef8
+          check ose/assets/.manifest_payload/part01.b64 8000 f0ae506f3ed03cb2217f7bcb20ed7c6f54db3bdd9de2eaec755f8056f9eabc06
+          check ose/assets/.manifest_payload/part02.b64 8000 d7d7533bb9d190a8adf5859dc839c10fa4397be023dafefa5c583319d2a956b0
+          check ose/assets/.manifest_payload/part03a.b64 2000 213d635fe09778d5118b022675edb9e823395cb7a6a0149880cc64e0db515274
+          check ose/assets/.manifest_payload/part03b.b64 2000 56d7cd2b8bdf1fb960fd7d235501dca87becc760d7fab7a18136640096648460
+          check ose/assets/.manifest_payload/part03c.b64 2000 a377fd1d89c6fe3a6c2e44554b0b9b89ed54a13cd696b35ac176c014a42f4c3b
+          check ose/assets/.manifest_payload/part03d.b64 2000 3e38905f564d037cb56eabd19c0b33bdc139fbd5517b1afbf9489d06e72a271f
+          check ose/assets/.manifest_payload/part04.b64 8000 af7cfbc6046896ee0885559794d7a5e1aa08a5a097c1346962b2597d241e0f26
+          check ose/assets/.manifest_payload/part05a.b64 2000 094eb5af5992b74cd22ff84c70e212a507e0ecd93a35c5812919e4f8bf81d147
+          check ose/assets/.manifest_payload/part05b.b64 2000 191e03febbe2746eabee28eb9facffc3e538914dd08700a409302ac79dae9932
+          check ose/assets/.manifest_payload/part05c.b64 1320 e8da517f9e42064577d73cc686c3986c668824612ef73c991c7ad363ff121b26
       - name: Reconstruct exact attached Visual Forge manifest
         shell: bash
         run: |
           set -euo pipefail
-          cat ose/assets/.manifest_payload/part*.b64 | tr -d '\n\r' | base64 -d > /tmp/ASSET_MANIFEST.json.gz
+          cat \
+            ose/assets/.manifest_payload/part00.b64 \
+            ose/assets/.manifest_payload/part01.b64 \
+            ose/assets/.manifest_payload/part02.b64 \
+            ose/assets/.manifest_payload/part03a.b64 \
+            ose/assets/.manifest_payload/part03b.b64 \
+            ose/assets/.manifest_payload/part03c.b64 \
+            ose/assets/.manifest_payload/part03d.b64 \
+            ose/assets/.manifest_payload/part04.b64 \
+            ose/assets/.manifest_payload/part05a.b64 \
+            ose/assets/.manifest_payload/part05b.b64 \
+            ose/assets/.manifest_payload/part05c.b64 \
+            | base64 -d > /tmp/ASSET_MANIFEST.json.gz
+          gzip -t /tmp/ASSET_MANIFEST.json.gz
           gzip -dc /tmp/ASSET_MANIFEST.json.gz > ose/assets/ASSET_MANIFEST.json
           test "$(stat -c '%s' ose/assets/ASSET_MANIFEST.json)" = "315559"
           echo "769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4  ose/assets/ASSET_MANIFEST.json" | sha256sum --check --strict
