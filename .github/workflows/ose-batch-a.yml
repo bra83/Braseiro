@@ -1,0 +1,71 @@
+name: BRASEIRO OSE Batch A
+
+on:
+  push:
+    branches: [ose-batch-a]
+    paths:
+      - "ose/**"
+      - ".github/workflows/ose-batch-a.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ose/**"
+      - ".github/workflows/ose-batch-a.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wave1:
+    name: Wave 1 Foundations
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ose
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle 8.10.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.10.2
+      - name: Wrapper version
+        run: ./gradlew --version
+      - name: Compile and test Wave 1
+        run: ./gradlew clean test --stacktrace
+      - name: Assemble source baseline
+        if: success()
+        run: |
+          mkdir -p build/reports/batch-a
+          printf "WAVE_1_FOUNDATIONS=PASS\n" > build/reports/batch-a/wave1-status.txt
+          git rev-parse HEAD > build/reports/batch-a/commit-sha.txt
+          ./gradlew --version > build/reports/batch-a/gradle-version.txt
+          cd ..
+          zip -qr BRASEIRO_OSE_SOURCE_WAVE1.zip ose .github/workflows/ose-batch-a.yml -x "ose/**/build/*" "ose/.gradle/*"
+      - name: Upload Wave 1 source
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_SOURCE_WAVE1
+          path: BRASEIRO_OSE_SOURCE_WAVE1.zip
+          if-no-files-found: error
+      - name: Upload Wave 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE1_TEST_EVIDENCE
+          path: |
+            ose/**/build/test-results/**
+            ose/**/build/reports/tests/**
+            ose/build/reports/batch-a/**
+          if-no-files-found: warn
