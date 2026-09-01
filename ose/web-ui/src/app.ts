@@ -1,51 +1,13 @@
 import { fixtures, type FixtureId, FIXED_CLOCK, FIXTURE_REVISION } from './fixtures.js';
 import { BRIDGE_VERSION, postBridge } from './bridge.js';
-
-function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c] ?? c)); }
-function queryFixture(): FixtureId {
-  const value = new URLSearchParams(location.search).get('fixture') as FixtureId | null;
-  return value && value in fixtures ? value : 'session-prestart';
-}
-
-function shell(content: string, keyboard = false): string {
-  return `<main class="app ${keyboard ? 'keyboard-open' : ''}" data-fixture-revision="${FIXTURE_REVISION}">
-    <header class="topbar"><button class="icon-button" aria-label="Menu">☰</button><div><div class="brand">OLD-SCHOOL ESSENTIALS</div><div class="edition">BRASEIRO OSE</div></div><button class="icon-button" aria-label="Configurações">⚙</button></header>
-    <section class="content">${content}</section>
-    <nav class="bottom-nav" aria-label="Navegação"><button>Sessão</button><button>Mapa</button><button>Ficha</button></nav>
-  </main>${keyboard ? keyboardMarkup() : ''}`;
-}
-
-function sessionPrestart(): string {
-  const f=fixtures['session-prestart'];
-  return shell(`<div class="title-block"><h1>${f.title}</h1><p>${f.subtitle}</p></div>
-    <section class="parchment narrative"><h2>Antes de começar</h2><p>${f.narrative}</p></section>
-    <section class="party-card"><h2>Grupo</h2>${f.party!.map(x=>`<div class="party-row"><span class="token-dot"></span><span>${escapeHtml(x)}</span></div>`).join('')}</section>
-    <div class="state-note">TTS indisponível antes da narração</div>
-    <button id="startNarration" class="primary">COMEÇAR A NARRAR</button>
-    <div class="channel-grid"><button class="secondary" disabled>PLAYER_ACTION</button><button class="secondary">GM_HELP</button></div>`);
-}
-
-function characterSheet(): string {
-  const f=fixtures['character-sheet']; const c=f.character!;
-  return shell(`<div class="title-block"><h1>${f.title}</h1><p>${f.subtitle}</p></div>
-    <section class="parchment character-head"><h2>${c.name}</h2><p>${c.classLabel} · Nível <span>${c.level}</span></p><div class="vitals"><span>♥ PV <b>${c.hp}</b></span><span>◈ CA <b>${c.ac}</b></span><span>↟ MOV <b>${c.movement}</b></span><span>✦ XP <b>${c.xp}</b></span></div></section>
-    <h2 class="section-label">Atributos</h2><section class="attribute-grid">${c.attributes.map(([n,v,m])=>`<div class="attribute"><span>${n}</span><strong>${v}</strong><em>${m}</em></div>`).join('')}</section>
-    <h2 class="section-label">Salvamentos</h2><section class="list-card">${c.saves.map(([n,v])=>`<div><span>${n}</span><b>${v}</b></div>`).join('')}</section>
-    <h2 class="section-label">Inventário</h2><section class="list-card inventory">${c.inventory.map(x=>`<div><span>${escapeHtml(x)}</span></div>`).join('')}</section>`);
-}
-
-function keyboardMarkup(): string {
-  return `<div class="keyboard-sim" aria-label="Teclado simulado"><div class="key-row">${['Q','W','E','R','T','Y','U','I','O','P'].map(k=>`<span>${k}</span>`).join('')}</div><div class="key-row">${['A','S','D','F','G','H','J','K','L'].map(k=>`<span>${k}</span>`).join('')}</div><div class="key-row">${['Z','X','C','V','B','N','M'].map(k=>`<span>${k}</span>`).join('')}</div><div class="space-key">espaço</div></div>`;
-}
-
-function keyboardOpen(): string {
-  const f=fixtures['keyboard-open'];
-  return shell(`<div class="title-block compact"><h1>${f.title}</h1><p>${f.subtitle}</p></div><section class="parchment narrative compact-narrative"><p>${f.narrative}</p></section>
-    <div id="actionDock" class="action-dock"><label for="playerAction">PLAYER_ACTION</label><textarea id="playerAction" rows="2">Examino a porta sem abri-la.</textarea><button class="primary">ENVIAR AÇÃO</button></div>`, true);
-}
-
-const id=queryFixture();
-document.documentElement.dataset.clock=FIXED_CLOCK;
-document.body.innerHTML = id === 'character-sheet' ? characterSheet() : id === 'keyboard-open' ? keyboardOpen() : sessionPrestart();
-document.body.dataset.ready='true';
-postBridge({version:BRIDGE_VERSION,type:'ViewState',payload:{fixture:id,fixtureRevision:FIXTURE_REVISION,clock:FIXED_CLOCK}});
+const A='./assets/';
+const img=(n:string,c='',a='')=>`<img ${a?`data-anchor="${a}"`:''} class="${c}" src="${A}${n}" alt="">`;
+const fixture=()=>{const q=new URLSearchParams(location.search).get('fixture') as FixtureId|null;return q&&q in fixtures?q:'session-prestart'};
+const header=(title:string,sub:string)=>`<header>${img('001_logo_ose.png','logo','header_logo')}<h1 data-anchor="header_title">${title}</h1><p class="sub">${sub}</p><button class="menu" data-anchor="menu">${img('002_icone_menu.png')}</button><button class="settings" data-anchor="settings">${img('003_icone_configuracoes.png')}</button></header><i class="header-line" data-axis="header_divider"></i>`;
+const nav=()=>`<nav data-axis="bottom_nav"><button data-anchor="bottom_session" class="sel">${img('006_icone_pergaminho.png')}<small>SESSÃO</small></button><button data-anchor="bottom_map">${img('013_icone_mapa.png')}<small>MAPA</small></button><button data-anchor="bottom_sheet">${img('012_icone_livros.png')}<small>FICHA</small></button><button data-anchor="bottom_bag">${img('015_icone_mochila.png')}<small>BOLSA</small></button></nav>`;
+const rail=(n:string,l:string,a:string)=>`<button class="rail" data-anchor="${a}">${img(n)}<small>${l}</small></button>`;
+function prestart(){return `<main class="screen prestart">${header('NOVA SESSÃO','SESSION_PRESTART · narrativa ainda não iniciada')}<section class="ready">${img('006_icone_pergaminho.png','ready-icon','ready_icon')}<h2 data-anchor="ready_title">PRONTO PARA COMEÇAR</h2><p data-anchor="ready_subtitle">Party e posição inicial definidas.</p></section><section class="prep" data-anchor="prep_panel">${img('075_painel_pergaminho_rustico.png','bg')}<div><b>PREPARAÇÃO DA SESSÃO</b><label>POSIÇÃO INICIAL</label><p>Entrada das Cavernas</p><label>PARTY</label><p>4 aventureiros • pronta</p><label>ESTADO</label><p>Narrativa ainda não iniciada</p><small>PLAYER_ACTION permanece indisponível.<br>Nenhum tempo, posição, NPC ou<br>consequência mecânica avançou.</small></div></section><aside>${rail('014_icone_grupo.png','PARTY','rail_party')}${rail('013_icone_mapa.png','MAPA','rail_map')}${rail('011_icone_d20.png','DADOS','rail_dice')}${rail('015_icone_mochila.png','BOLSA','rail_bag')}</aside><button class="cta" data-anchor="start_cta">${img('OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png')}<span>COMEÇAR A NARRAR</span></button><button class="pa-pre" data-anchor="player_action" disabled>${img('072_painel_pergaminho_pautado.png')}<span>PLAYER_ACTION</span></button><button class="tts-pre" data-anchor="tts_control" disabled>${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}</button><button class="gm-pre" data-anchor="gm_help">${img('OSE_SESSION_A501_icone_gm_help.png')}<span>GM_HELP</span></button><i class="tts-line" data-axis="tts_divider"></i><p class="tts-note">TTS　 indisponível até existir narração.</p>${nav()}</main>`}
+function active(keyboard=false){const f=fixtures['session-active'];return `<main class="screen active ${keyboard?'kbd-open':''}">${header('CRIPTA SOB O OUTEIRO','SESSION_ACTIVE · narrativa em andamento')}<section class="status"><div data-anchor="status_light">${img('008_status_tocha_30m.png')}</div><div data-anchor="status_move">${img('010_status_movimento_90.png')}</div><div data-anchor="status_dice">${img('011_icone_d20.png')}</div><div data-anchor="status_party">${img('014_icone_grupo.png')}</div></section><section class="narr" data-anchor="narration_panel">${img('OSE_SESSION_A502_frame_narracao_flexivel.png','bg')}<div><b>MESTRE</b><p>${f.narrative}</p></div></section><button class="tts" data-anchor="tts_control">${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}<small>OUVIR<br>TTS</small></button><h2 class="action-title">AÇÃO / PLAYER_ACTION</h2><label class="what">O que você faz?</label><section class="action" data-anchor="player_action_panel">${img('072_painel_pergaminho_pautado.png','bg')}<textarea id="playerAction" aria-label="PLAYER_ACTION">${keyboard?'Examino a porta sem abri-la.':''}</textarea></section><button class="send" data-anchor="send_button">${img('OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png')}<span>ENVIAR</span></button><button class="gm" data-anchor="gm_help">${img('OSE_SESSION_A501_icone_gm_help.png')}<span>GM_HELP</span></button><section class="shortcuts">${rail('013_icone_mapa.png','MAPA','shortcut_map')}${rail('012_icone_livros.png','FICHA','shortcut_sheet')}${rail('011_icone_d20.png','DADOS','shortcut_dice')}${rail('015_icone_mochila.png','BOLSA','shortcut_bag')}</section><i class="history-line" data-axis="history_divider"></i><section class="history"><h2 data-anchor="history_title">HISTÓRICO DA SESSÃO</h2><p>A narração continua em rolagem vertical. Entradas anteriores permanecem acessíveis sem empurrar PLAYER_ACTION e GM_HELP para o mesmo canal.</p></section>${nav()}</main>${keyboard?keyboardMarkup():''}`}
+function keyboardMarkup(){return `<div class="keyboard-sim">${['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].map(r=>`<div>${[...r].map(k=>`<span>${k}</span>`).join('')}</div>`).join('')}<em>espaço</em></div>`}
+function overlay(id:FixtureId){if(new URLSearchParams(location.search).get('conceptOverlay')!=='1')return'';const n=id==='session-active'?'CONCEPT_SESSION_ACTIVE_415x915.png':'CONCEPT_SESSION_PRESTART_415x915.png';return `<div id="conceptOverlay" class="overlay"><img src="${A}${n}" alt="concept"></div>`}
+const id=fixture();document.documentElement.dataset.clock=FIXED_CLOCK;document.body.innerHTML=(id==='session-prestart'?prestart():active(id==='keyboard-open'))+overlay(id);document.body.dataset.ready='true';postBridge({version:BRIDGE_VERSION,type:'ViewState',payload:{fixture:id,fixtureRevision:FIXTURE_REVISION,clock:FIXED_CLOCK}});
