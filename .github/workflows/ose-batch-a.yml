@@ -193,6 +193,32 @@ jobs:
       - name: Build web bundle for WebView
         working-directory: ose/web-ui
         run: npm install --ignore-scripts && npm run build
+      - name: Prepare WebView smoke evidence directory
+        shell: bash
+        run: mkdir -p ose/build/reports/webview-smoke
+      - name: Enable and verify KVM acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPORT=ose/build/reports/webview-smoke/kvm.txt
+          {
+            echo "KVM_ACCELERATION = CHECKING"
+            echo "runner=$(uname -a)"
+            if ! test -e /dev/kvm; then
+              echo "KVM_ACCELERATION = BLOCKED_BY_RUNNER"
+              echo "reason=/dev/kvm missing"
+              exit 20
+            fi
+            echo "before=$(ls -l /dev/kvm)"
+            sudo chmod 666 /dev/kvm
+            echo "after=$(ls -l /dev/kvm)"
+            if ! "$ANDROID_HOME/emulator/emulator" -accel-check; then
+              echo "KVM_ACCELERATION = BLOCKED_BY_RUNNER"
+              echo "reason=emulator -accel-check failed"
+              exit 21
+            fi
+            echo "KVM_ACCELERATION = PASS"
+          } 2>&1 | tee "$REPORT"
       - name: Emulator instrumentation WebView smoke
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -200,13 +226,26 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          disable-linux-hw-accel: false
           script: cd ose && ./gradlew :app-android:connectedDebugAndroidTest --stacktrace
+      - name: Collect WebView smoke diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ose/build/reports/webview-smoke
+          adb devices -l > ose/build/reports/webview-smoke/adb-devices.txt 2>&1
+          adb shell getprop ro.build.version.sdk > ose/build/reports/webview-smoke/android-sdk.txt 2>&1
+          adb shell dumpsys webviewupdate > ose/build/reports/webview-smoke/webviewupdate.txt 2>&1
+          adb shell pidof braseiro.ose > ose/build/reports/webview-smoke/app-pid.txt 2>&1 || true
+          adb logcat -d -v threadtime > ose/build/reports/webview-smoke/logcat.txt 2>&1 || true
       - name: Upload instrumentation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: BRASEIRO_OSE_WAVE2_WEBVIEW_EVIDENCE
           path: |
+            ose/build/reports/webview-smoke/**
             ose/app-android/build/outputs/androidTest-results/**
             ose/app-android/build/reports/androidTests/**
           if-no-files-found: warn
