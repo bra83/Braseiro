@@ -1,0 +1,8 @@
+{
+  "source": "Visual Forge canonical ASSET_MANIFEST.json",
+  "driveFileId": "1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA",
+  "downloadUrl": "https://drive.google.com/uc?export=download&id=1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA",
+  "sha256": "769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4",
+  "schema": "BRASEIRO_VISUAL_FORGE_ASSET_MANIFEST_V2",
+  "policy": "CI must download and hash-verify this exact manifest before Wave 2 asset tests/build. Runtime uses the bundled verified copy; no network is required at runtime."
+}

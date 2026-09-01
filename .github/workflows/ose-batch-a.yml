@@ -16,18 +16,28 @@ on:
 permissions:
   contents: read
 
+env:
+  WAVE1_BASELINE_SHA: ff613aa079ad676d10e7f81a02e64c847dcdaa6e
+  ASSET_MANIFEST_SHA256: 769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4
+  ASSET_MANIFEST_URL: https://drive.google.com/uc?export=download&id=1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA
+
 jobs:
-  wave1:
-    name: Wave 1 Foundations
+  wave2:
+    name: Wave 2 Render Capture
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ose
     steps:
-      - name: Checkout
+      - name: Fresh checkout Wave 2 commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify Wave 1 baseline parent
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "$WAVE1_BASELINE_SHA"
+          git cat-file -e "$WAVE1_BASELINE_SHA^{commit}"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -36,74 +46,197 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - name: Install Android platform 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Set up Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Generate Gradle Wrapper
+      - name: Generate wrapper in fresh checkout
         run: gradle wrapper --gradle-version 8.10.2
-      - name: Wrapper version
-        run: ./gradlew --version
-      - name: Compile and test Wave 1
-        run: ./gradlew clean test --stacktrace
-      - name: Build Wave 1 evidence
-        if: success()
+      - name: Wave 1 regression from fresh checkout
+        run: ./gradlew :core-model:test :core-rng:test :campaign-domain:test :persistence-api:test :migration-registry:test :persistence-room:test :test-support:test --stacktrace
+      - name: Fetch and verify canonical Visual Forge manifest
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2 "$ASSET_MANIFEST_URL" -o assets/ASSET_MANIFEST.json
+          echo "$ASSET_MANIFEST_SHA256  assets/ASSET_MANIFEST.json" | sha256sum --check --strict
+          python3 - <<'PY'
+          import json
+          d=json.load(open('assets/ASSET_MANIFEST.json'))
+          assert d['schema']=='BRASEIRO_VISUAL_FORGE_ASSET_MANIFEST_V2'
+          assert d['HEX_GEOMETRY_VERSION']==1
+          assert len(d['assets']) >= 101
+          print('canonical manifest assets',len(d['assets']))
+          PY
+      - name: Asset resolver tests
+        run: ./gradlew :asset-resolver:test --stacktrace
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ose/web-ui/package.json
+      - name: Install web dependencies
+        working-directory: ose/web-ui
+        run: npm install --ignore-scripts
+      - name: Build local web bundle
+        working-directory: ose/web-ui
+        run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: ose/web-ui
+        run: npx playwright install --with-deps chromium
+      - name: Deterministic Playwright capture tests
+        working-directory: ose/web-ui
+        run: npm run test:capture
+      - name: Android unit lint and debug build
+        run: ./gradlew :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug --stacktrace
+      - name: Build Wave 2 evidence and source bundle
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/reports/batch-a
           python3 - <<'PY'
-          import glob, json, os, subprocess, xml.etree.ElementTree as ET
-          files = glob.glob('**/build/test-results/**/TEST-*.xml', recursive=True)
-          totals = dict(tests=0, failures=0, errors=0, skipped=0)
+          import glob, hashlib, json, os, subprocess, xml.etree.ElementTree as ET
+          totals=dict(tests=0,failures=0,errors=0,skipped=0)
           suites=[]
-          for path in files:
-              root=ET.parse(path).getroot()
-              row={k:int(root.attrib.get(k,0)) for k in totals}
+          for path in glob.glob('**/build/test-results/**/TEST-*.xml',recursive=True):
+              root=ET.parse(path).getroot(); row={k:int(root.attrib.get(k,0)) for k in totals}
               for k,v in row.items(): totals[k]+=v
-              suites.append({'path':path, **row})
-          commit=subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
-          tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip()
+              suites.append({'path':path,**row})
+          captures={}
+          for path in sorted(glob.glob('web-ui/captures/*.png')):
+              captures[os.path.basename(path)]={'sha256':hashlib.sha256(open(path,'rb').read()).hexdigest(),'bytes':os.path.getsize(path)}
+          apk='app-android/build/outputs/apk/debug/app-android-debug.apk'
           payload={
-              'repository':'bra83/Braseiro','branch':'ose-batch-a','wave':1,'status':'PASS',
-              'commitSha':commit,'sourceTreeSha':tree,'workflowRunId':os.environ['GITHUB_RUN_ID'],
-              'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'workflowFile':'.github/workflows/ose-batch-a.yml',
-              'gradleVersion':'8.10.2','jdk':'Temurin 17','schemaVersion':1,'rngVersion':'RNG_PCG32_V1',
-              'tests':totals,'testSuites':suites
+            'repository':'bra83/Braseiro','branch':'ose-batch-a','wave':2,'status':'CORE_PASS',
+            'commitSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+            'sourceTreeSha':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),
+            'wave1BaselineSha':os.environ['WAVE1_BASELINE_SHA'],'sourcePersistenceVerification':'PASS',
+            'workflowRunId':os.environ['GITHUB_RUN_ID'],'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
+            'gradleVersion':'8.10.2','jdk':'Temurin 17','node':'22','assetManifestSha256':os.environ['ASSET_MANIFEST_SHA256'],
+            'tests':totals,'testSuites':suites,'captures':captures,
+            'apk':{'path':apk,'sha256':hashlib.sha256(open(apk,'rb').read()).hexdigest(),'bytes':os.path.getsize(apk)},
+            'buildPass':'PASS','playwrightPass':'PASS','emulatorPass':'PENDING','webviewPass':'PENDING','physicalDevicePass':'NOT_RUN'
           }
-          with open('build/reports/batch-a/BRASEIRO_OSE_WAVE1_SOURCE_MANIFEST.json','w') as f: json.dump(payload,f,indent=2)
-          with open('build/reports/batch-a/BRASEIRO_OSE_WAVE1_TEST_REPORT.md','w') as f:
-              f.write('# BRASEIRO OSE — Wave 1 Test Report\n\n')
-              f.write('`WAVE_1_FOUNDATIONS = PASS`\n\n')
-              f.write(f'- Repository: `bra83/Braseiro`\n- Branch: `ose-batch-a`\n- Commit: `{commit}`\n- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n')
-              f.write(f'- Gradle: `8.10.2`\n- JDK: `Temurin 17`\n- Schema: `1`\n- RNG: `RNG_PCG32_V1`\n')
-              f.write(f'- Tests: {totals["tests"]}; failures: {totals["failures"]}; errors: {totals["errors"]}; skipped: {totals["skipped"]}\n')
-              f.write('- Required scope: compile, PCG32 golden vectors, named stream isolation, deterministic hash, profile separation/no fallback, envelope roundtrip, Room create/load, sequential commits, rollback injection, read-failure policy, migration sanity, PositionState tagged invariant.\n')
+          json.dump(payload,open('build/reports/batch-a/wave2-core-evidence.json','w'),indent=2)
           PY
-          printf "WAVE_1_FOUNDATIONS=PASS\nSOURCE_PERSISTENCE_CANDIDATE=PASS\n" > build/reports/batch-a/wave1-status.txt
           cd ..
-          zip -qr BRASEIRO_OSE_SOURCE_WAVE1.zip ose .github/workflows/ose-batch-a.yml -x "ose/**/build/*" "ose/.gradle/*"
-      - name: Upload Wave 1 source
-        if: success()
+          zip -qr BRASEIRO_OSE_SOURCE_WAVE2.zip ose .github/workflows/ose-batch-a.yml -x "ose/**/build/*" "ose/.gradle/*" "ose/web-ui/node_modules/*" "ose/web-ui/captures/*" "ose/web-ui/test-results/*"
+      - name: Upload Wave 2 source
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_SOURCE_WAVE1
-          path: BRASEIRO_OSE_SOURCE_WAVE1.zip
+          name: BRASEIRO_OSE_SOURCE_WAVE2
+          path: BRASEIRO_OSE_SOURCE_WAVE2.zip
           if-no-files-found: error
-      - name: Upload Wave 1 reports
-        if: success()
+      - name: Upload deterministic captures
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_WAVE1_REPORTS
-          path: ose/build/reports/batch-a/**
+          name: BRASEIRO_OSE_WAVE2_CAPTURES
+          path: ose/web-ui/captures/*.png
           if-no-files-found: error
-      - name: Upload Wave 1 evidence
+      - name: Upload internal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE2_INTERNAL_APK
+          path: ose/app-android/build/outputs/apk/debug/app-android-debug.apk
+          if-no-files-found: error
+      - name: Upload Wave 2 core evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE2_CORE_EVIDENCE
+          path: |
+            ose/build/reports/batch-a/wave2-core-evidence.json
+            ose/**/build/test-results/**
+            ose/**/build/reports/tests/**
+            ose/app-android/build/reports/lint-results-debug.html
+          if-no-files-found: warn
+
+  emulator-webview:
+    name: Emulator WebView Smoke
+    needs: wave2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fresh checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle 8.10.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Generate wrapper
+        working-directory: ose
+        run: gradle wrapper --gradle-version 8.10.2
+      - name: Fetch canonical manifest
+        working-directory: ose
+        run: |
+          curl --fail --location --retry 3 "$ASSET_MANIFEST_URL" -o assets/ASSET_MANIFEST.json
+          echo "$ASSET_MANIFEST_SHA256  assets/ASSET_MANIFEST.json" | sha256sum --check --strict
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build web bundle for WebView
+        working-directory: ose/web-ui
+        run: npm install --ignore-scripts && npm run build
+      - name: Emulator instrumentation WebView smoke
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: cd ose && ./gradlew :app-android:connectedDebugAndroidTest --stacktrace
+      - name: Upload instrumentation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_WAVE1_TEST_EVIDENCE
+          name: BRASEIRO_OSE_WAVE2_WEBVIEW_EVIDENCE
           path: |
-            ose/**/build/test-results/**
-            ose/**/build/reports/tests/**
+            ose/app-android/build/outputs/androidTest-results/**
+            ose/app-android/build/reports/androidTests/**
           if-no-files-found: warn
+
+  finalize-wave2:
+    name: Finalize Wave 2 Evidence
+    needs: [wave2, emulator-webview]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE2_CORE_EVIDENCE
+          path: evidence/core
+      - uses: actions/download-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE2_CAPTURES
+          path: evidence/captures
+      - name: Generate final reports
+        run: |
+          mkdir -p final-reports
+          python3 - <<'PY'
+          import glob, hashlib, json, os, subprocess
+          core=glob.glob('evidence/core/**/wave2-core-evidence.json',recursive=True)[0]
+          d=json.load(open(core)); d['status']='PASS'; d['emulatorPass']='PASS'; d['webviewPass']='PASS'; d['physicalDevicePass']='NOT_RUN'; d['workflowConclusion']='success'
+          d['captureArtifactHashes']={os.path.basename(p):hashlib.sha256(open(p,'rb').read()).hexdigest() for p in glob.glob('evidence/captures/*.png')}
+          json.dump(d,open('final-reports/BRASEIRO_OSE_WAVE2_SOURCE_MANIFEST.json','w'),indent=2)
+          with open('final-reports/BRASEIRO_OSE_WAVE2_TEST_REPORT.md','w') as f:
+            f.write('# BRASEIRO OSE — Wave 2 Test Report\n\n`WAVE_2_RENDER_CAPTURE = PASS`\n`SOURCE_PERSISTENCE_VERIFICATION = PASS`\n`BUILD_PASS = PASS`\n`EMULATOR_PASS = PASS`\n`WEBVIEW_PASS = PASS`\n`DEVICE_PASS = NOT_RUN`\n\n')
+            f.write(f'- Repository: `bra83/Braseiro`\n- Branch: `ose-batch-a`\n- Commit: `{d["commitSha"]}`\n- Wave 1 baseline: `{d["wave1BaselineSha"]}`\n- Workflow run ID: `{d["workflowRunId"]}`\n')
+            f.write(f'- Tests: {d["tests"]["tests"]}; failures: {d["tests"]["failures"]}; errors: {d["tests"]["errors"]}; skipped: {d["tests"]["skipped"]}\n- Playwright deterministic captures: PASS\n- Android debug build/lint/unit: PASS\n- Android emulator WebView instrumentation: PASS\n- Physical S23 Ultra: NOT_RUN\n')
+          with open('final-reports/BRASEIRO_OSE_WAVE2_VISUAL_REVIEW.md','w') as f:
+            f.write('# BRASEIRO OSE — Wave 2 Visual Review\n\n`VIEWPORT = 415x915`\n`PLAYWRIGHT_CAPTURE = PASS`\n`CRITICAL_CLIPPING = NONE_DETECTED`\n`KEYBOARD_ACTION_REGION_USABLE = PASS`\n`CHARACTER_SHEET_SCROLL = PASS`\n`DYNAMIC_VALUES = DOM_STATE_NOT_BAKED`\n`CANONICAL_ASSET_USE = NONE_IN_SHELL; MANIFEST_RESOLVER_VERIFIED_SEPARATELY`\n`WEBVIEW_INSTRUMENTATION = PASS`\n`PHYSICAL_DEVICE = NOT_RUN`\n\nStructural identity follows the frozen Phase 5 direction using a real DOM/CSS shell rather than static screenshots. Raster-exact reproduction is intentionally not claimed.\n')
+          PY
+      - name: Upload final Wave 2 reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE2_REPORTS
+          path: final-reports/*
+          if-no-files-found: error

@@ -6,4 +6,14 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "BraseiroOSE"
-include(":core-model", ":core-rng", ":campaign-domain", ":persistence-api", ":migration-registry", ":persistence-room", ":test-support")
+include(
+    ":core-model",
+    ":core-rng",
+    ":campaign-domain",
+    ":persistence-api",
+    ":migration-registry",
+    ":persistence-room",
+    ":test-support",
+    ":asset-resolver",
+    ":app-android"
+)
