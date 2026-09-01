@@ -33,7 +33,9 @@ jobs:
           check ose/assets/.manifest_payload/part04.b64 8000 af7cfbc6046896ee0885559794d7a5e1aa08a5a097c1346962b2597d241e0f26
           check ose/assets/.manifest_payload/part05a.b64 2000 094eb5af5992b74cd22ff84c70e212a507e0ecd93a35c5812919e4f8bf81d147
           check ose/assets/.manifest_payload/part05b.b64 2000 191e03febbe2746eabee28eb9facffc3e538914dd08700a409302ac79dae9932
-          check ose/assets/.manifest_payload/part05c.b64 1320 e8da517f9e42064577d73cc686c3986c668824612ef73c991c7ad363ff121b26
+          check ose/assets/.manifest_payload/part05c0.b64 440 03aeb8ba083107850d8f9d7b4ebb20013c2713dc97c353cf370c8e775a9d674a
+          check ose/assets/.manifest_payload/part05c1.b64 440 73b83eef45080ad6c0cbbde609e2b2ae39c06f3f36d8dcb548863f93fb0a9084
+          check ose/assets/.manifest_payload/part05c2.b64 440 d4befa044fbdcdbfff790abe88c8bbd66718d4fd221154bab74235aa2beb3652
       - name: Reconstruct exact attached Visual Forge manifest
         shell: bash
         run: |
@@ -49,7 +51,9 @@ jobs:
             ose/assets/.manifest_payload/part04.b64 \
             ose/assets/.manifest_payload/part05a.b64 \
             ose/assets/.manifest_payload/part05b.b64 \
-            ose/assets/.manifest_payload/part05c.b64 \
+            ose/assets/.manifest_payload/part05c0.b64 \
+            ose/assets/.manifest_payload/part05c1.b64 \
+            ose/assets/.manifest_payload/part05c2.b64 \
             | base64 -d > /tmp/ASSET_MANIFEST.json.gz
           gzip -t /tmp/ASSET_MANIFEST.json.gz
           gzip -dc /tmp/ASSET_MANIFEST.json.gz > ose/assets/ASSET_MANIFEST.json
