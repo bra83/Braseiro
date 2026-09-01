@@ -227,18 +227,8 @@ jobs:
           profile: pixel_6
           disable-animations: true
           disable-linux-hw-accel: false
-          script: |
-            cd ose
-            set +e
-            mkdir -p build/reports/webview-smoke
-            ./gradlew :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/webview-smoke/instrumentation.txt
-            TEST_STATUS=${PIPESTATUS[0]}
-            timeout 10s adb devices -l > build/reports/webview-smoke/adb-devices.txt 2>&1 || true
-            timeout 10s adb shell getprop ro.build.version.sdk > build/reports/webview-smoke/android-sdk.txt 2>&1 || true
-            timeout 10s adb shell dumpsys webviewupdate > build/reports/webview-smoke/webviewupdate.txt 2>&1 || true
-            timeout 10s adb shell pidof braseiro.ose > build/reports/webview-smoke/app-pid.txt 2>&1 || true
-            timeout 20s adb logcat -d -v threadtime > build/reports/webview-smoke/logcat.txt 2>&1 || true
-            exit "$TEST_STATUS"
+          script: >-
+            bash -lc 'cd ose && set +e; mkdir -p build/reports/webview-smoke; ./gradlew :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/webview-smoke/instrumentation.txt; status=${PIPESTATUS[0]}; timeout 10s adb devices -l > build/reports/webview-smoke/adb-devices.txt 2>&1 || true; timeout 10s adb shell getprop ro.build.version.sdk > build/reports/webview-smoke/android-sdk.txt 2>&1 || true; timeout 10s adb shell dumpsys webviewupdate > build/reports/webview-smoke/webviewupdate.txt 2>&1 || true; timeout 10s adb shell pidof braseiro.ose > build/reports/webview-smoke/app-pid.txt 2>&1 || true; timeout 20s adb logcat -d -v threadtime > build/reports/webview-smoke/logcat.txt 2>&1 || true; exit "$status"'
       - name: Upload instrumentation evidence
         if: always()
         uses: actions/upload-artifact@v4
