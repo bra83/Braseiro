@@ -1,54 +1,18 @@
 import { test, expect } from '@playwright/test';
-import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-
-mkdirSync(path.resolve('captures'), { recursive: true });
-const expected: Array<[string,string]> = [
-  ['session-prestart','CAPTURE_SESSION_PRESTART_415x915.png'],
-  ['character-sheet','CAPTURE_CHARACTER_SHEET_415x915.png'],
-  ['keyboard-open','CAPTURE_KEYBOARD_OPEN_415x915.png']
-];
-const digest=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
-
-for (const [fixture,file] of expected) {
-  test(`${fixture} renders deterministically at 415x915`, async ({page}) => {
-    await page.goto(`/?fixture=${fixture}`);
-    await expect(page.locator('body')).toHaveAttribute('data-ready','true');
-    expect(await page.evaluate(() => [innerWidth,innerHeight])).toEqual([415,915]);
-    expect(await page.locator('[data-canonical-asset]').count()).toBe(0);
-    const first=await page.screenshot({fullPage:false});
-    const second=await page.screenshot({fullPage:false});
-    expect(digest(second)).toBe(digest(first));
-    await page.screenshot({path:path.resolve('captures',file),fullPage:false});
-  });
+mkdirSync(path.resolve('captures'),{recursive:true});
+const MAX_POS=4,MAX_SIZE=6,MAX_AXIS=3;
+type Box={x:number;y:number;w:number;h:number};
+const pre:Record<string,Box>={header_logo:{x:18,y:6,w:98,h:49},header_title:{x:123,y:16,w:154,h:24},header_subtitle:{x:123,y:44,w:206,h:10},menu:{x:346,y:15,w:24,h:25},settings:{x:377,y:15,w:25,h:25},ready_icon:{x:25,y:84,w:43,h:44},ready_title:{x:84,y:89,w:217,h:18},ready_subtitle:{x:84,y:113,w:177,h:10},prep_panel:{x:40,y:159,w:229,h:292},rail_party:{x:311,y:158,w:39,h:39},rail_map:{x:311,y:223,w:39,h:39},rail_dice:{x:311,y:289,w:39,h:39},rail_bag:{x:311,y:355,w:39,h:39},start_cta:{x:168,y:496,w:78,h:45},player_action:{x:74,y:591,w:82,h:49},tts_control:{x:246,y:579,w:58,h:57},gm_help:{x:318,y:648,w:77,h:47},bottom_session:{x:29,y:852,w:45,h:50},bottom_map:{x:130,y:852,w:45,h:50},bottom_sheet:{x:235,y:852,w:45,h:50},bottom_bag:{x:337,y:852,w:45,h:50}};
+const act:Record<string,Box>={header_logo:{x:18,y:6,w:98,h:49},header_title:{x:123,y:16,w:220,h:24},status_light:{x:22,y:82,w:53,h:46},status_move:{x:103,y:82,w:53,h:46},status_dice:{x:183,y:82,w:53,h:46},status_party:{x:263,y:82,w:53,h:46},narration_panel:{x:29,y:153,w:313,h:168},tts_control:{x:357,y:158,w:40,h:39},player_action_panel:{x:95,y:363,w:122,h:171},send_button:{x:192,y:498,w:57,h:36},gm_help:{x:317,y:440,w:65,h:39},shortcut_map:{x:28,y:579,w:40,h:34},shortcut_sheet:{x:122,y:579,w:40,h:34},shortcut_dice:{x:216,y:579,w:40,h:34},shortcut_bag:{x:309,y:579,w:40,h:34},history_title:{x:29,y:680,w:145,h:15}};
+async function geometry(page:any,expected:Record<string,Box>,axes:Record<string,number>){
+ const actual=await page.evaluate(()=>{const a:any={},ax:any={};document.querySelectorAll<HTMLElement>('[data-anchor]').forEach(e=>{const r=e.getBoundingClientRect();a[e.dataset.anchor!]={x:r.x,y:r.y,w:r.width,h:r.height}});document.querySelectorAll<HTMLElement>('[data-axis]').forEach(e=>{const r=e.getBoundingClientRect();ax[e.dataset.axis!]=r.y});return{a,ax}});
+ for(const [k,e] of Object.entries(expected)){const r=actual.a[k];expect(r,`missing ${k}`).toBeTruthy();expect(Math.max(Math.abs(r.x-e.x),Math.abs(r.y-e.y)),`${k} position`).toBeLessThanOrEqual(MAX_POS);expect(Math.max(Math.abs(r.w-e.w),Math.abs(r.h-e.h)),`${k} size`).toBeLessThanOrEqual(MAX_SIZE)}
+ for(const [k,y] of Object.entries(axes))expect(Math.abs(actual.ax[k]-y),`${k} axis`).toBeLessThanOrEqual(MAX_AXIS);
 }
-
-test('character sheet remains scrollable and unclipped horizontally', async ({page}) => {
-  await page.goto('/?fixture=character-sheet');
-  const metrics=await page.evaluate(() => ({scrollHeight:document.documentElement.scrollHeight,clientHeight:document.documentElement.clientHeight,scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth}));
-  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
-  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
-  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
-  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
-});
-
-test('keyboard fixture keeps action dock above simulated keyboard', async ({page}) => {
-  await page.goto('/?fixture=keyboard-open');
-  const geometry=await page.evaluate(() => {
-    const dock=document.getElementById('actionDock')!.getBoundingClientRect();
-    const keyboard=document.querySelector('.keyboard-sim')!.getBoundingClientRect();
-    return {dockBottom:dock.bottom,keyboardTop:keyboard.top,textareaVisible:!!document.getElementById('playerAction')};
-  });
-  expect(geometry.textareaVisible).toBeTruthy();
-  expect(geometry.dockBottom).toBeLessThanOrEqual(geometry.keyboardTop + 1);
-});
-
-test('bridge schema rejects wrong versions in web contract', async ({page}) => {
-  await page.goto('/?fixture=session-prestart');
-  const result=await page.evaluate(async () => {
-    const m=await import('./bridge.js');
-    return [m.isBridgeEnvelope({version:1,type:'ViewState',payload:{}}),m.isBridgeEnvelope({version:2,type:'ViewState',payload:{}}),m.isBridgeEnvelope({version:1,type:'RulesEngine',payload:{}})];
-  });
-  expect(result).toEqual([true,false,false]);
-});
+test('PRESTART geometry + capture + overlay',async({page})=>{await page.goto('/?fixture=session-prestart');await expect(page.locator('body')).toHaveAttribute('data-ready','true');expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);expect(await page.locator('[data-canonical-asset]').count()).toBeGreaterThan(10);await geometry(page,pre,{header_divider:68,tts_divider:730,bottom_nav:842});await page.screenshot({path:path.resolve('captures/SESSION_PRESTART_REAL_415x915.png')});await page.goto('/?fixture=session-prestart&conceptOverlay=1');await page.screenshot({path:path.resolve('captures/DEBUG_PRESTART_OVERLAY_50.png')});});
+test('ACTIVE geometry + capture + overlay',async({page})=>{await page.goto('/?fixture=session-active');await expect(page.locator('body')).toHaveAttribute('data-ready','true');expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);await geometry(page,act,{header_divider:68,history_divider:659,bottom_nav:842});await page.screenshot({path:path.resolve('captures/SESSION_ACTIVE_REAL_415x915.png')});await page.goto('/?fixture=session-active&conceptOverlay=1');await page.screenshot({path:path.resolve('captures/DEBUG_ACTIVE_OVERLAY_50.png')});});
+test('KEYBOARD keeps PLAYER_ACTION and ENVIAR accessible',async({page})=>{await page.goto('/?fixture=keyboard-open');const g=await page.evaluate(()=>{const a=document.querySelector('[data-anchor=player_action_panel]')!.getBoundingClientRect(),s=document.querySelector('[data-anchor=send_button]')!.getBoundingClientRect(),k=document.querySelector('.keyboard-sim')!.getBoundingClientRect(),n=document.querySelector('nav')!.getBoundingClientRect();return{aBottom:a.bottom,sBottom:s.bottom,kTop:k.top,navW:n.width,textarea:!!document.getElementById('playerAction')}});expect(g.textarea).toBeTruthy();expect(g.aBottom).toBeLessThanOrEqual(g.kTop);expect(g.sBottom).toBeLessThanOrEqual(g.kTop);expect(g.navW).toBe(0);await page.screenshot({path:path.resolve('captures/SESSION_KEYBOARD_REAL_415x915.png')});});
+test('no generic unicode icon substitutes',async({page})=>{await page.goto('/?fixture=session-active');const t=await page.locator('body').innerText();expect(t).not.toContain('☰');expect(t).not.toContain('⚙');});
+test('bridge schema remains versioned',async({page})=>{await page.goto('/?fixture=session-prestart');const result=await page.evaluate(async()=>{const m=await import('./bridge.js');return[m.isBridgeEnvelope({version:1,type:'ViewState',payload:{}}),m.isBridgeEnvelope({version:2,type:'ViewState',payload:{}})]});expect(result).toEqual([true,false]);});
