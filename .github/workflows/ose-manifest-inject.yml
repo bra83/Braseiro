@@ -18,6 +18,13 @@ jobs:
         with:
           ref: ose-batch-a
           fetch-depth: 0
+      - name: Diagnose staged payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          for p in ose/assets/.manifest_payload/part*.b64; do
+            echo "$(basename "$p") bytes=$(tr -d '\n\r' < "$p" | wc -c) sha=$(tr -d '\n\r' < "$p" | sha256sum | awk '{print $1}')"
+          done
       - name: Reconstruct exact attached Visual Forge manifest
         shell: bash
         run: |
