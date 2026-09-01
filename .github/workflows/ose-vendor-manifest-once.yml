@@ -22,7 +22,7 @@ jobs:
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --quiet gdown
           mkdir -p ose/assets
-          gdown --id 1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA -O ose/assets/ASSET_MANIFEST.json
+          gdown 1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA -O ose/assets/ASSET_MANIFEST.json
           echo "769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4  ose/assets/ASSET_MANIFEST.json" | sha256sum --check --strict
           python3 - <<'PY'
           import json
