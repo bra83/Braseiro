@@ -14,13 +14,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   WAVE1_BASELINE_SHA: ff613aa079ad676d10e7f81a02e64c847dcdaa6e
   WAVE2_ROOT_SHA: d3143a88b682b27a3c4bb3fafd64110a2599d4f0
   ASSET_MANIFEST_SHA256: 769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4
-  ASSET_MANIFEST_BOOTSTRAP_URL: https://sdmntprbrazilsouth.oaiusercontent.com/files/00000000-08c0-820e-9d0b-b96bafb95921/raw?se=2026-09-01T09%3A45%3A54Z&sp=r&sv=2026-02-06&sr=b&scid=c5c241cc-fe6e-525f-9073-3ba4405a7801&skoid=4a431cd2-eafd-49c7-90be-bbb4d45e696d&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-08-31T23%3A30%3A20Z&ske=2026-09-01T23%3A30%3A20Z&sks=b&skv=2026-02-06&sig=vFezKy1rWg20Sqn%2BW8VHZWeA2pbGWE7QNygnAUGb6Ks%3D
 
 jobs:
   wave2:
@@ -34,31 +33,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Vendor canonical manifest from connected Drive bytes
-        run: |
-          set -euo pipefail
-          if test -f assets/ASSET_MANIFEST.json && echo "$ASSET_MANIFEST_SHA256  assets/ASSET_MANIFEST.json" | sha256sum --check --strict >/dev/null 2>&1; then
-            echo "Canonical manifest already vendored."
-            exit 0
-          fi
-          curl --fail --location --retry 3 --retry-delay 2 "$ASSET_MANIFEST_BOOTSTRAP_URL" -o assets/ASSET_MANIFEST.json.tmp
-          echo "$ASSET_MANIFEST_SHA256  assets/ASSET_MANIFEST.json.tmp" | sha256sum --check --strict
-          mv assets/ASSET_MANIFEST.json.tmp assets/ASSET_MANIFEST.json
-          cat > assets/manifest-pin.json <<'JSON'
-          {
-            "drive_file_id": "1vSWqtvNEyn8IxWmysHUSIwa3Vd4fzlvA",
-            "canonical_sha256": "769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4",
-            "schema": "BRASEIRO_VISUAL_FORGE_ASSET_MANIFEST_V2",
-            "repository_path": "ose/assets/ASSET_MANIFEST.json",
-            "source_classification": "VENDORED_CANONICAL_BUILD_INPUT",
-            "provenance_note": "Google Drive remains the documentary/original authority. This Git copy is an exact-byte reproducible build pin."
-          }
-          JSON
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add assets/ASSET_MANIFEST.json assets/manifest-pin.json
-          git commit -m "Vendor canonical OSE asset manifest"
-          git push origin HEAD:ose-batch-a
       - name: Verify Wave 1 baseline ancestry
         run: |
           set -euo pipefail
