@@ -21,7 +21,11 @@ class WebViewSmokeTest {
                     latch.countDown()
                 }
             }
-            assertTrue(latch.await(15, TimeUnit.SECONDS))
+            // GitHub's Linux runner has no KVM access, so API 35 runs under software
+            // emulation and WebView's renderer can take substantially longer to service
+            // evaluateJavascript. Keep the functional assertions unchanged; only give the
+            // renderer enough time to answer on the required no-acceleration CI path.
+            assertTrue(latch.await(120, TimeUnit.SECONDS))
             assertEquals("\"true\"", ready)
             scenario.onActivity { activity ->
                 assertEquals(BridgeEnvelopeMetadata(1, "ViewState"), activity.lastBridgeMessage)
