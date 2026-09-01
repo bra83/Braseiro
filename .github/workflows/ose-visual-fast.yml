@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Materialize cached canonical Session assets
+      - name: Materialize canonical Session assets and concepts
         shell: bash
         run: |
           set -euo pipefail
@@ -43,15 +43,8 @@ jobs:
           get 1irWqc24uREVCEnoKGQ6ynQe86fWt-fIh OSE_SESSION_A501_icone_gm_help.png
           get 1VOkRyh1OxohDz8ju7y5FMhRK2f9B7tlI OSE_SESSION_A502_frame_narracao_flexivel.png
           get 1xbGqfD4xdmWwr2JH_9nLghuYA6ZqAnsm OSE_SESSION_NEW_A701_icone_tts_ouvir.png
-          cp ../../CONCEPT_SESSION_PRESTART_415x915.png src/assets/CONCEPT_SESSION_PRESTART_415x915.png 2>/dev/null || true
-          cp ../../CONCEPT_SESSION_ACTIVE_415x915.png src/assets/CONCEPT_SESSION_ACTIVE_415x915.png 2>/dev/null || true
-      - name: Fetch visual authority concepts
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -L --fail --retry 3 --silent --show-error 'https://drive.usercontent.google.com/download?id=1DUMMY_PRESTART&export=download&confirm=t' -o /tmp/pre.png || true
-          test -s src/assets/CONCEPT_SESSION_PRESTART_415x915.png || { echo 'concepts are expected to be committed/materialized before final lock'; exit 23; }
-          test -s src/assets/CONCEPT_SESSION_ACTIVE_415x915.png || exit 24
+          get 1AViIBLKkZwI1y3g8BTfEu63R6UIaug_0 CONCEPT_SESSION_PRESTART_415x915.png
+          get 1Mf6l7-kedPSfLmfYOft2WEnNjaik5An7 CONCEPT_SESSION_ACTIVE_415x915.png
       - run: npm install --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
