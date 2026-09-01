@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -33,6 +35,8 @@ jobs:
           java-version: "17"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+      - name: Install Android platform 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Set up Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -43,13 +47,41 @@ jobs:
         run: ./gradlew --version
       - name: Compile and test Wave 1
         run: ./gradlew clean test --stacktrace
-      - name: Assemble source baseline
+      - name: Build Wave 1 evidence
         if: success()
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p build/reports/batch-a
-          printf "WAVE_1_FOUNDATIONS=PASS\n" > build/reports/batch-a/wave1-status.txt
-          git rev-parse HEAD > build/reports/batch-a/commit-sha.txt
-          ./gradlew --version > build/reports/batch-a/gradle-version.txt
+          python3 - <<'PY'
+          import glob, json, os, subprocess, xml.etree.ElementTree as ET
+          files = glob.glob('**/build/test-results/**/TEST-*.xml', recursive=True)
+          totals = dict(tests=0, failures=0, errors=0, skipped=0)
+          suites=[]
+          for path in files:
+              root=ET.parse(path).getroot()
+              row={k:int(root.attrib.get(k,0)) for k in totals}
+              for k,v in row.items(): totals[k]+=v
+              suites.append({'path':path, **row})
+          commit=subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip()
+          tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip()
+          payload={
+              'repository':'bra83/Braseiro','branch':'ose-batch-a','wave':1,'status':'PASS',
+              'commitSha':commit,'sourceTreeSha':tree,'workflowRunId':os.environ['GITHUB_RUN_ID'],
+              'workflowRunAttempt':os.environ['GITHUB_RUN_ATTEMPT'],'workflowFile':'.github/workflows/ose-batch-a.yml',
+              'gradleVersion':'8.10.2','jdk':'Temurin 17','schemaVersion':1,'rngVersion':'RNG_PCG32_V1',
+              'tests':totals,'testSuites':suites
+          }
+          with open('build/reports/batch-a/BRASEIRO_OSE_WAVE1_SOURCE_MANIFEST.json','w') as f: json.dump(payload,f,indent=2)
+          with open('build/reports/batch-a/BRASEIRO_OSE_WAVE1_TEST_REPORT.md','w') as f:
+              f.write('# BRASEIRO OSE — Wave 1 Test Report\n\n')
+              f.write('`WAVE_1_FOUNDATIONS = PASS`\n\n')
+              f.write(f'- Repository: `bra83/Braseiro`\n- Branch: `ose-batch-a`\n- Commit: `{commit}`\n- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n')
+              f.write(f'- Gradle: `8.10.2`\n- JDK: `Temurin 17`\n- Schema: `1`\n- RNG: `RNG_PCG32_V1`\n')
+              f.write(f'- Tests: {totals["tests"]}; failures: {totals["failures"]}; errors: {totals["errors"]}; skipped: {totals["skipped"]}\n')
+              f.write('- Required scope: compile, PCG32 golden vectors, named stream isolation, deterministic hash, profile separation/no fallback, envelope roundtrip, Room create/load, sequential commits, rollback injection, read-failure policy, migration sanity, PositionState tagged invariant.\n')
+          PY
+          printf "WAVE_1_FOUNDATIONS=PASS\nSOURCE_PERSISTENCE_CANDIDATE=PASS\n" > build/reports/batch-a/wave1-status.txt
           cd ..
           zip -qr BRASEIRO_OSE_SOURCE_WAVE1.zip ose .github/workflows/ose-batch-a.yml -x "ose/**/build/*" "ose/.gradle/*"
       - name: Upload Wave 1 source
@@ -59,6 +91,13 @@ jobs:
           name: BRASEIRO_OSE_SOURCE_WAVE1
           path: BRASEIRO_OSE_SOURCE_WAVE1.zip
           if-no-files-found: error
+      - name: Upload Wave 1 reports
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_WAVE1_REPORTS
+          path: ose/build/reports/batch-a/**
+          if-no-files-found: error
       - name: Upload Wave 1 evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,5 +106,4 @@ jobs:
           path: |
             ose/**/build/test-results/**
             ose/**/build/reports/tests/**
-            ose/build/reports/batch-a/**
           if-no-files-found: warn

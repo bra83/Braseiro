@@ -6,15 +6,23 @@ import braseiro.ose.persistence.api.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class RoomCampaignRepository(private val db: BraseiroOseDatabase, private val failureInjector: (() -> Unit)? = null) : CampaignRepository {
+class RoomCampaignRepository(
+    private val db: BraseiroOseDatabase,
+    private val commitFailureInjector: (() -> Unit)? = null,
+    private val readFailureInjector: (() -> Unit)? = null
+) : CampaignRepository {
     private val dao = db.campaignDao()
     private val json = Json { encodeDefaults = true; explicitNulls = false; classDiscriminator = "kind"; ignoreUnknownKeys = false }
 
     override fun create(envelope: CampaignEnvelope) = dao.insertCampaign(CampaignEntity(envelope.campaignId.value, json.encodeToString(envelope))).let { }
+
     override fun load(campaignId: CampaignId): CampaignLoadResult = try {
+        readFailureInjector?.invoke()
         val entity = dao.findCampaign(campaignId.value) ?: return CampaignLoadResult.NotFound(campaignId)
         CampaignLoadResult.Loaded(json.decodeFromString<CampaignEnvelope>(entity.envelopeJson))
-    } catch (t: Throwable) { CampaignLoadResult.ReadFailure(campaignId, t) }
+    } catch (t: Throwable) {
+        CampaignLoadResult.ReadFailure(campaignId, t)
+    }
 
     override fun commit(campaignId: CampaignId, transition: StateTransition) {
         db.runInTransaction {
@@ -23,7 +31,7 @@ class RoomCampaignRepository(private val db: BraseiroOseDatabase, private val fa
             val nextSequence = current.commitSequence + 1
             val updated = envelope.copy(campaignState = transition.updatedState)
             dao.insertAudit(ActionAuditEntity(campaignId = campaignId.value, transitionId = transition.transitionId, sequence = nextSequence))
-            failureInjector?.invoke()
+            commitFailureInjector?.invoke()
             check(dao.updateState(campaignId.value, json.encodeToString(updated), nextSequence) == 1)
         }
     }
@@ -34,6 +42,7 @@ class RoomCampaignRepository(private val db: BraseiroOseDatabase, private val fa
             dao.insertCheckpoint(CheckpointEntity(checkpointId, campaignId.value, current.commitSequence))
         }
     }
+
     override fun listCampaigns(): List<CampaignSummary> = dao.listCampaigns().map { CampaignSummary(CampaignId(it.campaignId), it.archived) }
     override fun archive(campaignId: CampaignId) { check(dao.archive(campaignId.value) == 1) }
 }
