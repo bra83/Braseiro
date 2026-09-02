@@ -1,4 +1,4 @@
-# canonical-a201-vendor-retry
+# trigger-vendor-after-a201
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
