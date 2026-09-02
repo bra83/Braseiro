@@ -88,7 +88,7 @@ function active(keyboard=false){const f=fixtures['session-active'];return `<main
       <p>${f.narrative}</p>
     </div>
     <div class="context-frame">
-      <div class="context-caption"><b>CRIPTA SOB O OUTEIRO</b><span>Setor C3 • corredor úmido</span></div>
+      <div class="context-caption"><b>CRIPTA SOB O OUTEIRO</b><span>Setor C3 · corredor úmido</span></div>
       <div class="dungeon-context" aria-label="Contexto procedural da cripta">
         ${img('086_tile_sala_quadrada.png','dungeon-tile room-a')}
         ${img('087_tile_corredor.png','dungeon-tile corridor-a')}
