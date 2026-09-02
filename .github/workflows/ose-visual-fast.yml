@@ -6,6 +6,7 @@ on:
     paths:
       - 'ose/web-ui/src/app.ts'
       - 'ose/web-ui/src/styles.css'
+      - 'ose/web-ui/src/strict-overrides.css'
       - 'ose/web-ui/tests/capture.spec.ts'
       - 'ose/web-ui/src/assets/*.png'
       - '.github/workflows/ose-visual-fast.yml'
