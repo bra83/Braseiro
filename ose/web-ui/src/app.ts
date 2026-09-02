@@ -51,9 +51,9 @@ function prestart(){return `<main class="screen prestart">
   <button class="start-cta" data-anchor="start_cta">${img('OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png')}<span>COMEÇAR A NARRAR</span></button>
 
   <section class="lower-actions">
-    <button class="lower-card player-card" data-anchor="player_action" disabled>${img('OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png','card-bg')}<div>${img('006_icone_pergaminho.png','card-icon')}<b>PLAYER_ACTION</b><small>Indisponível até existir narração.</small></div></button>
+    <button class="lower-card player-card" data-anchor="player_action" disabled>${img('075_painel_pergaminho_rustico.png','card-bg')}<div>${img('006_icone_pergaminho.png','card-icon')}<b>PLAYER_ACTION</b><small>Indisponível até existir narração.</small></div></button>
     <button class="tts-orb" data-anchor="tts_control" disabled>${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}<b>OUVIR</b><small>TTS</small></button>
-    <button class="lower-card gm-card" data-anchor="gm_help">${img('OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png','card-bg')}<div>${img('OSE_SESSION_A501_icone_gm_help.png','card-icon')}<b>GM_HELP</b><small>Não avança mundo antes da narração.</small></div></button>
+    <button class="lower-card gm-card" data-anchor="gm_help">${img('075_painel_pergaminho_rustico.png','card-bg')}<div>${img('OSE_SESSION_A501_icone_gm_help.png','card-icon')}<b>GM_HELP</b><small>Não avança mundo antes da narração.</small></div></button>
   </section>
   ${nav()}
 </main>`}
@@ -82,7 +82,7 @@ function active(keyboard=false){const f=fixtures['session-active'];return `<main
     <button class="send" data-anchor="send_button">${img('OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png')}<span>ENVIAR</span></button>
   </section>
 
-  <button class="gm-panel" data-anchor="gm_help">${img('OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png','panel-art')}<div>${img('OSE_SESSION_A501_icone_gm_help.png')}<b>GM_HELP</b><small>não avança<br>mundo</small></div></button>
+  <button class="gm-panel" data-anchor="gm_help">${img('075_painel_pergaminho_rustico.png','panel-art')}<div>${img('OSE_SESSION_A501_icone_gm_help.png')}<b>GM_HELP</b><small>não avança<br>mundo</small></div></button>
 
   <section class="shortcut-row">
     ${railCard('013_icone_mapa.png','MAPA','shortcut_map')}
@@ -92,7 +92,7 @@ function active(keyboard=false){const f=fixtures['session-active'];return `<main
   </section>
 
   <i class="history-divider" data-axis="history_divider"></i>
-  <section class="history"><h2 data-anchor="history_title">HISTÓRICO DA SESSÃO</h2><ul><li>A pesada porta de madeira range ao ser aberta e vocês entram na cripta.</li><li>O ar é frio e carrega o cheiro de terra molhada e algo antigo.</li><li>À esquerda, um arco de pedra leva a um desvio escuro.</li></ul></section>
+  <section class="history"><h2 data-anchor="history_title">HISTÓRICO DA SESSÃO</h2><ul><li>A pesada porta de madeira range ao ser aberta e vocês entram na cripta.</li><li>O ar é frio e carrega o cheiro de terra molhada e algo antigo.</li><li>À esquerda, um arco de pedra leva a um desvio escuro.</li><li>O corredor continua, sinuoso, desaparecendo na penumbra.</li></ul></section>
   ${nav()}
 </main>${keyboard?keyboardMarkup():''}`}
 
