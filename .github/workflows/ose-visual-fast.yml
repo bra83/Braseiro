@@ -18,35 +18,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json, hashlib, struct
-          from pathlib import Path
-          root=Path('src/assets')
-          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
-          missing=[]
-          for e in pin['files']:
-              p=root/e['filename']
-              if not p.is_file() or p.stat().st_size <= 0:
-                  missing.append(str(p)); continue
-              b=p.read_bytes()
-              if hashlib.sha256(b).hexdigest()!=e['sha256']:
-                  raise SystemExit(f'sha256 mismatch: {p}')
-              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
-                  raise SystemExit(f'not PNG: {p}')
-              w,h=struct.unpack('>II',b[16:24])
-              if (w,h)!=(e['width'],e['height']):
-                  raise SystemExit(f'dim mismatch {p}: {(w,h)}')
-          if missing:
-              raise SystemExit('missing/empty: '+', '.join(missing))
-          print('MISSING_PINNED_ASSETS=0')
-          print(f'BINARY_ASSET_INTEGRITY=PASS files={len(pin["files"])}')
-          PY
-      - run: npm install --ignore-scripts
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
+          python3 scripts/validate_visual_lock_assets.py
+      - name: npm install
+        run: npm install --ignore-scripts
+      - name: npm run build
+        run: npm run build
+      - name: Playwright install
+        run: npx playwright install --with-deps chromium
       - name: Playwright 415x915 + real overlay + anchors
         run: npm run test:capture
-      - uses: actions/upload-artifact@v4
+      - name: Upload BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V2
+        uses: actions/upload-artifact@v4
         with:
           name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V2
           path: |
