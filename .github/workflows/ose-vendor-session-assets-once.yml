@@ -4,6 +4,7 @@ on:
     branches: [ose-session-visual-lock-strict-2]
     paths:
       - '.github/workflows/ose-vendor-session-assets-once.yml'
+      - 'ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json'
   workflow_dispatch:
 permissions:
   contents: write
@@ -107,7 +108,7 @@ jobs:
           set -u
           python3 -m pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
           python3 - <<'PY'
-          import hashlib, json, shutil, struct
+          import hashlib, json, struct
           from pathlib import Path
           import gdown
 
