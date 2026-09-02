@@ -69,6 +69,8 @@ function prestart(){return `<main class="screen prestart">
 
 const status=(asset:string,label:string,value:string)=>`<div class="status-box">${img(asset)}<div><b>${label}</b><strong>${value}</strong></div></div>`;
 
+const partyMarker=(asset:string,klass:string)=>`<span class="party-marker ${klass}">${img(asset)}</span>`;
+
 function active(keyboard=false){const f=fixtures['session-active'];return `<main class="screen active ${keyboard?'kbd-open':''}">
   ${header('Cavernas do Caos  •  Sessão em andamento')}
 
@@ -85,12 +87,21 @@ function active(keyboard=false){const f=fixtures['session-active'];return `<main
       <h1>${img('006_icone_pergaminho.png')} NARRAÇÃO DO MESTRE</h1>
       <p>${f.narrative}</p>
     </div>
-    <div class="scene-art" aria-label="Ilustração contextual da cripta">
-      <div class="stone-wall"></div>
-      ${img('007_icone_tocha.png','scene-torch left')}
-      ${img('007_icone_tocha.png','scene-torch right')}
-      ${img('032_icone_porta.png','scene-door')}
-      <div class="scene-vignette"></div>
+    <div class="context-frame">
+      <div class="context-caption"><b>CRIPTA SOB O OUTEIRO</b><span>Setor C3 • corredor úmido</span></div>
+      <div class="dungeon-context" aria-label="Contexto procedural da cripta">
+        ${img('086_tile_sala_quadrada.png','dungeon-tile room-a')}
+        ${img('087_tile_corredor.png','dungeon-tile corridor-a')}
+        ${img('089_tile_cruzamento.png','dungeon-tile crossing')}
+        ${img('087_tile_corredor.png','dungeon-tile corridor-b')}
+        ${img('088_tile_sala_irregular.png','dungeon-tile room-b')}
+        ${img('032_icone_porta.png','context-door')}
+        ${partyMarker('040_token_guerreiro.png','p1')}
+        ${partyMarker('042_token_arqueiro.png','p2')}
+        ${partyMarker('041_token_mago.png','p3')}
+        ${partyMarker('043_token_ladrao.png','p4')}
+        <i class="fog fog-a"></i><i class="fog fog-b"></i>
+      </div>
     </div>
   </section>
 
