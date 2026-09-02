@@ -1,9 +1,5 @@
 name: BRASEIRO OSE Batch Vendor Pinned Assets
 on:
-  push:
-    branches: [ose-session-visual-lock-strict-2]
-    paths:
-      - '.github/workflows/ose-vendor-session-assets-once.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -17,87 +13,141 @@ jobs:
           ref: ose-session-visual-lock-strict-2
           fetch-depth: 1
 
-      - name: Reconstruct canonical bootstrap binaries in one batch
+      - name: Reconstruct definitive bootstrap atomically
         shell: bash
         working-directory: ose/web-ui
         run: |
-          set -euo pipefail
-          root=src/assets
-          if compgen -G "$root/.bootstrap-a201/part*.txt" >/dev/null; then
-            cat "$root"/.bootstrap-a201/part*.txt | tr -d '\n\r' | base64 -d > "$root/OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png"
-          fi
-          if compgen -G "$root/.bootstrap-a202/part*.txt" >/dev/null; then
-            cat "$root"/.bootstrap-a202/part*.txt | tr -d '\n\r' | base64 -d > "$root/OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png"
-          fi
-          if [ -f "$root/.bootstrap-special/OSE_SESSION_A501_icone_gm_help.b64" ]; then
-            tr -d '\n\r' < "$root/.bootstrap-special/OSE_SESSION_A501_icone_gm_help.b64" | base64 -d > "$root/OSE_SESSION_A501_icone_gm_help.png"
-          fi
-          if [ -f "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" ]; then
-            tr -d '\n\r' < "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" | base64 -d > "$root/OSE_SESSION_A502_frame_narracao_flexivel.png"
-          fi
-          if [ -f "$root/.bootstrap-final/OSE_SESSION_NEW_A701_icone_tts_ouvir.b64" ]; then
-            tr -d '\n\r' < "$root/.bootstrap-final/OSE_SESSION_NEW_A701_icone_tts_ouvir.b64" | base64 -d > "$root/OSE_SESSION_NEW_A701_icone_tts_ouvir.png"
-          fi
-          if compgen -G "$root/.bootstrap-final/CONCEPT_SESSION_PRESTART_415x915.part*.b64" >/dev/null; then
-            cat "$root"/.bootstrap-final/CONCEPT_SESSION_PRESTART_415x915.part*.b64 | tr -d '\n\r' | base64 -d > "$root/CONCEPT_SESSION_PRESTART_415x915.png"
-          fi
-          if compgen -G "$root/.bootstrap-final/CONCEPT_SESSION_ACTIVE_415x915.part*.b64" >/dev/null; then
-            cat "$root"/.bootstrap-final/CONCEPT_SESSION_ACTIVE_415x915.part*.b64 | tr -d '\n\r' | base64 -d > "$root/CONCEPT_SESSION_ACTIVE_415x915.png"
-          fi
+          set -u
+          python3 - <<'PY'
+          import base64, hashlib, json, re, shutil, struct
+          from pathlib import Path
+
+          root = Path('src/assets')
+          boot = root / '.bootstrap-definitive'
+          pin = json.loads((root / 'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          by_name = {e['filename']: e for e in pin['files']}
+          sig = b'\x89PNG\r\n\x1a\n'
+          part_re = re.compile(r'^(?P<stem>.+)\.part(?P<idx>\d{4})\.b64$')
+
+          groups = {}
+          if boot.is_dir():
+              for p in boot.iterdir():
+                  m = part_re.match(p.name)
+                  if not m:
+                      continue
+                  groups.setdefault(m.group('stem'), []).append((int(m.group('idx')), p))
+
+          for stem, parts in sorted(groups.items()):
+              filename = stem + '.png'
+              e = by_name.get(filename)
+              if not e:
+                  print(f'BOOTSTRAP_UNKNOWN={filename}')
+                  continue
+              parts.sort(key=lambda x: x[0])
+              idxs = [i for i,_ in parts]
+              first, last = idxs[0], idxs[-1]
+              expected = list(range(first, last + 1))
+              gaps = [i for i in expected if i not in idxs]
+              print(f'BOOTSTRAP_CHUNKS={filename} count={len(parts)} first={first} last={last} gaps={gaps}')
+              if first != 1 or gaps:
+                  print(f'BOOTSTRAP_INCOMPLETE={filename}')
+                  continue
+
+              text = ''.join(p.read_text(encoding='ascii').replace('\r','').replace('\n','') for _,p in parts)
+              if re.fullmatch(r'[A-Za-z0-9+/]*={0,2}', text) is None or len(text) % 4 != 0:
+                  print(f'BOOTSTRAP_INVALID={filename} reason=characters_or_padding')
+                  continue
+              if '=' in text[:-2]:
+                  print(f'BOOTSTRAP_INVALID={filename} reason=padding_position')
+                  continue
+
+              tmp = root / (filename + '.tmp')
+              tmp.unlink(missing_ok=True)
+              try:
+                  data = base64.b64decode(text, validate=True)
+                  tmp.write_bytes(data)
+              except Exception as exc:
+                  print(f'BOOTSTRAP_INVALID={filename} reason=decode error={exc!r}')
+                  tmp.unlink(missing_ok=True)
+                  continue
+
+              try:
+                  data = tmp.read_bytes()
+                  got = hashlib.sha256(data).hexdigest()
+                  if got != e['sha256']:
+                      raise ValueError(f'sha {got} != {e["sha256"]}')
+                  if len(data) < 24 or data[:8] != sig or data[12:16] != b'IHDR':
+                      raise ValueError('png signature/IHDR')
+                  w,h = struct.unpack('>II', data[16:24])
+                  if (w,h) != (e['width'], e['height']):
+                      raise ValueError(f'dim {(w,h)} != {(e["width"],e["height"])}')
+              except Exception as exc:
+                  print(f'BOOTSTRAP_INVALID={filename} reason=integrity error={exc!r}')
+                  tmp.unlink(missing_ok=True)
+                  continue
+
+              tmp.replace(root / filename)
+              print(f'BOOTSTRAP_READY={filename}')
+          PY
+
+      - name: Report integrity before fallback fetch
+        shell: bash
+        working-directory: ose/web-ui
+        run: |
+          python3 scripts/validate_visual_lock_assets.py || true
 
       - name: Fetch every remaining pin in one batch
         shell: bash
         working-directory: ose/web-ui
         run: |
-          set -euo pipefail
+          set -u
           python3 -m pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
           python3 - <<'PY'
-          import json, hashlib, struct, shutil
+          import hashlib, json, shutil, struct
           from pathlib import Path
           import gdown
 
-          root=Path('src/assets')
-          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          root = Path('src/assets')
+          pin = json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          sig = b'\x89PNG\r\n\x1a\n'
 
-          def exact(p,e):
-              if not p.is_file() or p.stat().st_size <= 0:
+          def exact(path, e):
+              if not path.is_file() or path.stat().st_size <= 0:
                   return False
-              b=p.read_bytes()
-              if hashlib.sha256(b).hexdigest()!=e['sha256']:
+              b = path.read_bytes()
+              if hashlib.sha256(b).hexdigest() != e['sha256']:
                   return False
-              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
+              if len(b) < 24 or b[:8] != sig or b[12:16] != b'IHDR':
                   return False
-              w,h=struct.unpack('>II',b[16:24])
-              return (w,h)==(e['width'],e['height'])
+              return struct.unpack('>II', b[16:24]) == (e['width'], e['height'])
 
-          failures=[]
+          failures = []
           for e in pin['files']:
-              out=root/e['filename']
-              if exact(out,e):
-                  print('PIN_READY',e['filename'])
+              out = root / e['filename']
+              if exact(out, e):
+                  print('PIN_READY', e['filename'])
                   continue
-              tmp=out.with_suffix(out.suffix+'.download')
+              tmp = root / (e['filename'] + '.download')
               tmp.unlink(missing_ok=True)
-              ok=False
-              for cookies in (True,False):
+              ok = False
+              for cookies in (True, False):
                   try:
-                      got=gdown.download(id=e['source_drive_file_id'], output=str(tmp), quiet=False, use_cookies=cookies)
+                      got = gdown.download(id=e['source_drive_file_id'], output=str(tmp), quiet=False, use_cookies=cookies)
                   except Exception as exc:
-                      print('GDOWN_EXCEPTION',e['filename'],repr(exc))
-                      got=None
-                  if got and exact(tmp,e):
-                      shutil.move(tmp,out)
-                      ok=True
+                      print('GDOWN_EXCEPTION', e['filename'], repr(exc))
+                      got = None
+                  if got and exact(tmp, e):
+                      tmp.replace(out)
+                      ok = True
+                      print('PIN_FETCHED', e['filename'])
                       break
                   if tmp.exists():
-                      print('GDOWN_REJECT',e['filename'],hashlib.sha256(tmp.read_bytes()).hexdigest(),tmp.stat().st_size)
+                      print('GDOWN_REJECT', e['filename'], hashlib.sha256(tmp.read_bytes()).hexdigest(), tmp.stat().st_size)
                       tmp.unlink()
               if not ok:
                   failures.append(e['filename'])
-              else:
-                  print('PIN_FETCHED',e['filename'])
           if failures:
-              raise SystemExit('BATCH_FETCH_FAILED: '+', '.join(failures))
+              print('FALLBACK_UNRESOLVED=' + ','.join(failures))
           PY
 
       - name: Validate complete pin batch before Playwright
@@ -105,47 +155,17 @@ jobs:
         working-directory: ose/web-ui
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json,hashlib,struct
-          from pathlib import Path
-          root=Path('src/assets')
-          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
-          missing=[]
-          for e in pin['files']:
-              p=root/e['filename']
-              if not p.is_file() or p.stat().st_size <= 0:
-                  missing.append(e['filename']); continue
-              b=p.read_bytes()
-              got=hashlib.sha256(b).hexdigest()
-              if got != e['sha256']:
-                  raise SystemExit(f'SHA mismatch {p.name}: {got} != {e["sha256"]}')
-              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
-                  raise SystemExit(f'not valid PNG: {p.name}')
-              w,h=struct.unpack('>II',b[16:24])
-              if (w,h)!=(e['width'],e['height']):
-                  raise SystemExit(f'dim mismatch {p.name}: {(w,h)} != {(e["width"],e["height"])}')
-          if missing:
-              raise SystemExit('MISSING_PINNED_ASSETS='+str(len(missing))+' '+','.join(missing))
-          print('MISSING_PINNED_ASSETS=0')
-          print('BINARY_ASSET_INTEGRITY=PASS')
-          print('PINNED_FILES='+str(len(pin['files'])))
-          PY
+          python3 scripts/validate_visual_lock_assets.py
 
-      - name: Clean bootstrap residue and re-enable Visual Fast
+      - name: Clean bootstrap residue and retire vendor workflow
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf ose/web-ui/src/assets/.bootstrap-a201 ose/web-ui/src/assets/.bootstrap-a202 ose/web-ui/src/assets/.bootstrap-special ose/web-ui/src/assets/.bootstrap-final
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('.github/workflows/ose-visual-fast.yml')
-          s=p.read_text()
-          old="on:\n  workflow_dispatch:\npermissions:"
-          new="on:\n  push:\n    branches: [ose-session-visual-lock-strict-2]\n    paths:\n      - 'ose/web-ui/**'\n      - '.github/workflows/ose-visual-fast.yml'\n  workflow_dispatch:\npermissions:"
-          if old not in s:
-              raise SystemExit('Visual Fast pause marker not found')
-          p.write_text(s.replace(old,new,1))
-          PY
+          rm -rf ose/web-ui/src/assets/.bootstrap-a201 \
+                 ose/web-ui/src/assets/.bootstrap-a202 \
+                 ose/web-ui/src/assets/.bootstrap-special \
+                 ose/web-ui/src/assets/.bootstrap-final \
+                 ose/web-ui/src/assets/.bootstrap-definitive
           git rm .github/workflows/ose-vendor-session-assets-once.yml
 
       - name: Commit complete canonical batch
@@ -154,8 +174,8 @@ jobs:
           set -euo pipefail
           git config user.name 'braseiro-build-bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add ose/web-ui/src/assets .github/workflows/ose-visual-fast.yml
-          git commit -m 'Visual Lock accelerator: vendor complete pinned asset batch'
+          git add ose/web-ui/src/assets ose/web-ui/scripts/validate_visual_lock_assets.py .github/workflows/ose-visual-fast.yml
+          git commit -m 'Visual Lock bootstrap hotfix: vendor 20 validated pinned binaries'
           git push origin HEAD:ose-session-visual-lock-strict-2
           echo "FINAL_BATCH_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
