@@ -17,7 +17,7 @@ jobs:
           ref: ose-session-visual-lock-strict-2
           fetch-depth: 1
 
-      - name: Reconstruct already-bootstrapped canonical binaries
+      - name: Reconstruct canonical bootstrap binaries in one batch
         shell: bash
         working-directory: ose/web-ui
         run: |
@@ -34,6 +34,15 @@ jobs:
           fi
           if [ -f "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" ]; then
             tr -d '\n\r' < "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" | base64 -d > "$root/OSE_SESSION_A502_frame_narracao_flexivel.png"
+          fi
+          if [ -f "$root/.bootstrap-final/OSE_SESSION_NEW_A701_icone_tts_ouvir.b64" ]; then
+            tr -d '\n\r' < "$root/.bootstrap-final/OSE_SESSION_NEW_A701_icone_tts_ouvir.b64" | base64 -d > "$root/OSE_SESSION_NEW_A701_icone_tts_ouvir.png"
+          fi
+          if compgen -G "$root/.bootstrap-final/CONCEPT_SESSION_PRESTART_415x915.part*.b64" >/dev/null; then
+            cat "$root"/.bootstrap-final/CONCEPT_SESSION_PRESTART_415x915.part*.b64 | tr -d '\n\r' | base64 -d > "$root/CONCEPT_SESSION_PRESTART_415x915.png"
+          fi
+          if compgen -G "$root/.bootstrap-final/CONCEPT_SESSION_ACTIVE_415x915.part*.b64" >/dev/null; then
+            cat "$root"/.bootstrap-final/CONCEPT_SESSION_ACTIVE_415x915.part*.b64 | tr -d '\n\r' | base64 -d > "$root/CONCEPT_SESSION_ACTIVE_415x915.png"
           fi
 
       - name: Fetch every remaining pin in one batch
@@ -126,7 +135,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf ose/web-ui/src/assets/.bootstrap-a201 ose/web-ui/src/assets/.bootstrap-a202 ose/web-ui/src/assets/.bootstrap-special
+          rm -rf ose/web-ui/src/assets/.bootstrap-a201 ose/web-ui/src/assets/.bootstrap-a202 ose/web-ui/src/assets/.bootstrap-special ose/web-ui/src/assets/.bootstrap-final
           python3 - <<'PY'
           from pathlib import Path
           p=Path('.github/workflows/ose-visual-fast.yml')
