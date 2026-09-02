@@ -1,0 +1,122 @@
+name: BRASEIRO OSE Visual Lock Final Gate
+
+on:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - "ose/**"
+      - ".github/workflows/ose-visual-lock-final.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ASSET_MANIFEST_SHA256: 769fa3b9893dc8a4108646783740a0caaa9971c6f90fd44d6e9309792e7301e4
+
+jobs:
+  build-and-capture:
+    name: Visual Lock Build + Capture + Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Generate wrapper
+        working-directory: ose
+        run: gradle wrapper --gradle-version 8.10.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify canonical manifest
+        working-directory: ose
+        run: |
+          set -euo pipefail
+          test -f assets/ASSET_MANIFEST.json
+          echo "$ASSET_MANIFEST_SHA256  assets/ASSET_MANIFEST.json" | sha256sum --check --strict
+      - name: Core regressions
+        working-directory: ose
+        run: ./gradlew :core-model:test :core-rng:test :campaign-domain:test :persistence-api:test :migration-registry:test :persistence-room:test :test-support:test :asset-resolver:test --stacktrace
+      - name: Web build and real captures
+        working-directory: ose/web-ui
+        run: |
+          npm install --ignore-scripts
+          npm run build
+          npx playwright install --with-deps chromium
+          npm run test:capture
+      - name: Android unit lint debug
+        working-directory: ose
+        run: ./gradlew :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug --stacktrace
+      - name: Upload real visual captures
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_FINAL_CAPTURES
+          path: ose/web-ui/captures/*.png
+          if-no-files-found: error
+      - name: Upload internal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_FINAL_APK
+          path: ose/app-android/build/outputs/apk/debug/app-android-debug.apk
+          if-no-files-found: error
+
+  emulator-webview:
+    name: Visual Lock Emulator WebView Smoke
+    needs: build-and-capture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Generate wrapper
+        working-directory: ose
+        run: gradle wrapper --gradle-version 8.10.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build current visual bundle
+        working-directory: ose/web-ui
+        run: npm install --ignore-scripts && npm run build
+      - name: Enable KVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Real WebView smoke API 35
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          disable-linux-hw-accel: false
+          script: bash -lc 'cd ose && ./gradlew :app-android:connectedDebugAndroidTest --stacktrace'
+
+  finalizer:
+    name: Visual Lock Finalizer
+    needs: [build-and-capture, emulator-webview]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo 'SESSION_VISUAL_LOCK_TECHNICAL_GATE=PASS'
+          echo 'PLAYWRIGHT_415x915=PASS'
+          echo 'ANDROID_BUILD=PASS'
+          echo 'WEBVIEW_EMULATOR=PASS'
+          echo 'PHYSICAL_DEVICE=NOT_RUN'
