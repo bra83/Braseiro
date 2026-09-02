@@ -23,10 +23,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ose/web-ui/src/assets
-          gdown --id 1OQz_7afhEZrmOKtDyLPlHA3JOMvI_M03 -O ose/web-ui/src/assets/040_token_guerreiro.png
-          gdown --id 1hmFHr3VPLeaX0LB9DutV3zKv14tKMzgY -O ose/web-ui/src/assets/041_token_mago.png
-          gdown --id 110Vzo_Wjno6ZWmuWeXK0sfG-NOR8fGTx -O ose/web-ui/src/assets/042_token_arqueiro.png
-          gdown --id 17ZRVqcRjrDei-WHnBwaEtkeoDzvs3Feo -O ose/web-ui/src/assets/043_token_ladrao.png
+          gdown 1OQz_7afhEZrmOKtDyLPlHA3JOMvI_M03 -O ose/web-ui/src/assets/040_token_guerreiro.png
+          gdown 1hmFHr3VPLeaX0LB9DutV3zKv14tKMzgY -O ose/web-ui/src/assets/041_token_mago.png
+          gdown 110Vzo_Wjno6ZWmuWeXK0sfG-NOR8fGTx -O ose/web-ui/src/assets/042_token_arqueiro.png
+          gdown 17ZRVqcRjrDei-WHnBwaEtkeoDzvs3Feo -O ose/web-ui/src/assets/043_token_ladrao.png
       - name: Validate images
         run: |
           python - <<'PY'
