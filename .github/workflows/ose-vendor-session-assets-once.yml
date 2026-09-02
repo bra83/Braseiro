@@ -1,5 +1,9 @@
 name: BRASEIRO OSE Batch Vendor Pinned Assets
 on:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - '.github/workflows/ose-vendor-session-assets-once.yml'
   workflow_dispatch:
 permissions:
   contents: write
