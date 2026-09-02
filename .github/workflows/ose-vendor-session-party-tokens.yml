@@ -1,0 +1,47 @@
+name: OSE Vendor Session Party Tokens
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - ".github/workflows/ose-vendor-session-party-tokens.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install gdown pillow
+      - name: Download canonical party tokens
+        run: |
+          set -euo pipefail
+          mkdir -p ose/web-ui/src/assets
+          gdown --id 1OQz_7afhEZrmOKtDyLPlHA3JOMvI_M03 -O ose/web-ui/src/assets/040_token_guerreiro.png
+          gdown --id 1hmFHr3VPLeaX0LB9DutV3zKv14tKMzgY -O ose/web-ui/src/assets/041_token_mago.png
+          gdown --id 110Vzo_Wjno6ZWmuWeXK0sfG-NOR8fGTx -O ose/web-ui/src/assets/042_token_arqueiro.png
+          gdown --id 17ZRVqcRjrDei-WHnBwaEtkeoDzvs3Feo -O ose/web-ui/src/assets/043_token_ladrao.png
+      - name: Validate images
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          for n in ['040_token_guerreiro.png','041_token_mago.png','042_token_arqueiro.png','043_token_ladrao.png']:
+              p=Path('ose/web-ui/src/assets')/n
+              assert p.stat().st_size > 10000, (n,p.stat().st_size)
+              im=Image.open(p); im.verify()
+              print(n, p.stat().st_size)
+          PY
+      - name: Commit canonical tokens
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ose/web-ui/src/assets/040_token_guerreiro.png ose/web-ui/src/assets/041_token_mago.png ose/web-ui/src/assets/042_token_arqueiro.png ose/web-ui/src/assets/043_token_ladrao.png
+          git commit -m "Visual Lock: vendor canonical party tokens" || exit 0
+          git push
