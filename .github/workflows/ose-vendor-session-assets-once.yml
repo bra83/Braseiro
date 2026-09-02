@@ -1,0 +1,71 @@
+name: BRASEIRO OSE Vendor Session Assets Once
+on:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - '.github/workflows/ose-vendor-session-assets-once.yml'
+permissions:
+  contents: write
+  actions: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ose-session-visual-lock-strict-2
+          fetch-depth: 1
+      - name: Materialize exact pinned binaries once
+        shell: bash
+        working-directory: ose/web-ui
+        run: |
+          set -euo pipefail
+          mkdir -p src/assets
+          python3 - <<'PY' > /tmp/assets.tsv
+          import json
+          p=json.load(open('src/assets/VISUAL_LOCK_BINARY_PIN.json'))
+          for e in p['files']:
+              print(e['source_drive_file_id']+'\t'+e['filename'])
+          PY
+          while IFS=$'\t' read -r id name; do
+            curl -L --fail --retry 4 --retry-all-errors --silent --show-error \
+              "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" \
+              -o "src/assets/${name}"
+          done < /tmp/assets.tsv
+      - name: Verify SHA-256 PNG decode metadata and concept dimensions
+        shell: bash
+        working-directory: ose/web-ui
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,hashlib,struct
+          from pathlib import Path
+          root=Path('src/assets')
+          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          for e in pin['files']:
+              p=root/e['filename']; b=p.read_bytes()
+              got=hashlib.sha256(b).hexdigest()
+              if got != e['sha256']: raise SystemExit(f'SHA mismatch {p.name}: {got} != {e["sha256"]}')
+              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR': raise SystemExit(f'not valid PNG: {p.name}')
+              w,h=struct.unpack('>II',b[16:24])
+              if (w,h)!=(e['width'],e['height']): raise SystemExit(f'dim mismatch {p.name}: {(w,h)}')
+          print('BINARY_ASSET_INTEGRITY=PASS')
+          PY
+      - name: Commit vendored binaries and retire one-shot vendor
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'braseiro-build-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add ose/web-ui/src/assets/*.png ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json
+          git rm .github/workflows/ose-vendor-session-assets-once.yml
+          git commit -m 'Visual Lock hotfix: vendor pinned Session assets and concepts'
+          git push origin HEAD:ose-session-visual-lock-strict-2
+      - name: Dispatch clean Visual Fast on vendored commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/ose-visual-fast.yml/dispatches" -f ref=ose-session-visual-lock-strict-2
+          echo 'VISUAL_FAST_DISPATCHED=YES'
