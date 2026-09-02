@@ -1,0 +1,52 @@
+name: OSE Vendor Session Dungeon Context
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - ".github/workflows/ose-vendor-session-dungeon-context.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install gdown pillow
+      - name: Download canonical dungeon context assets
+        run: |
+          set -euo pipefail
+          mkdir -p ose/web-ui/src/assets
+          gdown 1DyTvggyU8034ZLuPhsebmfIWCLqd-U9_ -O ose/web-ui/src/assets/086_tile_sala_quadrada.png
+          gdown 1H_aeMrI3j8FjDrzYd1CQqclNX1wTFSRZ -O ose/web-ui/src/assets/087_tile_corredor.png
+          gdown 13no-lYCNONj5UKVI0Kd68gLhXClut0j_ -O ose/web-ui/src/assets/088_tile_sala_irregular.png
+          gdown 1Iw-YKNA_HeEyobbBqdBSSIw4_nb-bSyC -O ose/web-ui/src/assets/089_tile_cruzamento.png
+          gdown 1Yd1HDHtPVG8-OnD5dVojMki69c53QNYy -O ose/web-ui/src/assets/090_tile_sala_circular.png
+          gdown 1wXh36jFLyhpeT-AySAhO6ONUPk49aEAl -O ose/web-ui/src/assets/091_tile_sala_escadas.png
+      - name: Validate images
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          for n in [
+            '086_tile_sala_quadrada.png','087_tile_corredor.png','088_tile_sala_irregular.png',
+            '089_tile_cruzamento.png','090_tile_sala_circular.png','091_tile_sala_escadas.png'
+          ]:
+              p=Path('ose/web-ui/src/assets')/n
+              assert p.exists() and p.stat().st_size > 5000, (n, p.stat().st_size if p.exists() else 0)
+              im=Image.open(p); im.verify()
+              print(n, p.stat().st_size)
+          PY
+      - name: Commit canonical dungeon assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ose/web-ui/src/assets/086_tile_sala_quadrada.png ose/web-ui/src/assets/087_tile_corredor.png ose/web-ui/src/assets/088_tile_sala_irregular.png ose/web-ui/src/assets/089_tile_cruzamento.png ose/web-ui/src/assets/090_tile_sala_circular.png ose/web-ui/src/assets/091_tile_sala_escadas.png
+          git commit -m "Visual Lock: vendor canonical dungeon context tiles" || exit 0
+          git push
