@@ -39,7 +39,9 @@ test('ACTIVE approved composition is real DOM and fits 415x915',async({page})=>{
   expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);
   await assertAllImagesLoaded(page);
   await expect(page.locator('.status-box')).toHaveCount(4);
-  await expect(page.locator('.scene-art')).toBeVisible();
+  await expect(page.locator('.dungeon-context')).toBeVisible();
+  await expect(page.locator('.dungeon-tile')).toHaveCount(5);
+  await expect(page.locator('.party-marker')).toHaveCount(4);
   await expect(page.locator('#playerAction')).toBeVisible();
   await expect(page.getByText('NARRAR (TTS)')).toBeVisible();
   const overflow=await page.evaluate(()=>document.documentElement.scrollHeight>915||document.documentElement.scrollWidth>415);
