@@ -22,12 +22,18 @@ jobs:
           set -euo pipefail
           mkdir -p src/assets
           python3 - <<'PY' > /tmp/assets.tsv
-          import json
-          p=json.load(open('src/assets/VISUAL_LOCK_BINARY_PIN.json'))
+          import json, hashlib
+          from pathlib import Path
+          root=Path('src/assets')
+          p=json.load(open(root/'VISUAL_LOCK_BINARY_PIN.json'))
           for e in p['files']:
+              f=root/e['filename']
+              if f.is_file() and hashlib.sha256(f.read_bytes()).hexdigest()==e['sha256']:
+                  continue
               print(e['source_drive_file_id']+'\t'+e['filename'])
           PY
           while IFS=$'\t' read -r id name; do
+            [ -n "$id" ] || continue
             curl -L --fail --retry 4 --retry-all-errors --silent --show-error \
               "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" \
               -o "src/assets/${name}"
