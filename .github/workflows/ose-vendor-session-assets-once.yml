@@ -1,4 +1,4 @@
-# final-pre-ref-marker
+# run-vendor-from-canonical-a201-head
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
