@@ -1,4 +1,4 @@
-# trigger-vendor-from-canonical-a201-head
+# vendor-marker-current
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
