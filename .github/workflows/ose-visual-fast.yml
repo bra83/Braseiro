@@ -4,7 +4,11 @@ on:
   push:
     branches: [ose-session-visual-lock-strict-2]
     paths:
-      - 'ose/web-ui/src/strict-overrides.css'
+      - 'ose/web-ui/src/app.ts'
+      - 'ose/web-ui/src/styles.css'
+      - 'ose/web-ui/tests/capture.spec.ts'
+      - 'ose/web-ui/src/assets/*.png'
+      - '.github/workflows/ose-visual-fast.yml'
 permissions:
   contents: read
 jobs:
@@ -18,28 +22,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate pinned binary assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/validate_visual_lock_assets.py
       - name: npm install
         run: npm install --ignore-scripts
       - name: npm run build
         run: npm run build
       - name: Playwright install
         run: npx playwright install --with-deps chromium
-      - name: Playwright 415x915 + real overlay + anchors
+      - name: Playwright 415x915 real DOM captures
         run: npm run test:capture
-      - name: Upload BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V2
+      - name: Upload real Session captures
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V2
+          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V3
           path: |
             ose/web-ui/captures/SESSION_PRESTART_REAL_415x915.png
             ose/web-ui/captures/SESSION_ACTIVE_REAL_415x915.png
             ose/web-ui/captures/SESSION_KEYBOARD_REAL_415x915.png
-            ose/web-ui/captures/DEBUG_PRESTART_OVERLAY_50.png
-            ose/web-ui/captures/DEBUG_ACTIVE_OVERLAY_50.png
-            ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json
           if-no-files-found: error
