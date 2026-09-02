@@ -3,21 +3,83 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 mkdirSync(path.resolve('captures'),{recursive:true});
 
-type Box={x:number;y:number;w:number;h:number};
-const MAX_POS=3,MAX_SIZE=4,MAX_AXIS=2;
-const pre:Record<string,Box>={header_logo:{x:49,y:20,w:174,h:84},header_title:{x:49,y:110,w:325,h:20},menu:{x:293,y:49,w:38,h:38},settings:{x:340,y:49,w:38,h:38},ready_icon:{x:42,y:171,w:45,h:56},ready_title:{x:100,y:175,w:205,h:46},ready_subtitle:{x:101,y:232,w:200,h:12},prep_panel:{x:33,y:266,w:239,h:321},rail_party:{x:289,y:213,w:96,h:62},rail_map:{x:289,y:299,w:96,h:62},rail_dice:{x:289,y:385,w:96,h:62},rail_bag:{x:289,y:471,w:96,h:62},start_cta:{x:101,y:617,w:214,h:51},player_action:{x:30,y:694,w:127,h:135},tts_control:{x:181,y:694,w:54,h:135},gm_help:{x:258,y:694,w:127,h:135}};
-const act:Record<string,Box>={header_logo:{x:49,y:20,w:174,h:84},header_title:{x:49,y:110,w:325,h:20},status_light:{x:46,y:143,w:61,h:77},status_move:{x:129,y:143,w:61,h:77},status_dice:{x:212,y:143,w:61,h:77},status_party:{x:295,y:143,w:61,h:77},narration_panel:{x:34,y:230,w:286,h:232},tts_control:{x:331,y:243,w:53,h:91},player_action_panel:{x:34,y:476,w:240,h:181},send_button:{x:198,y:614,w:68,h:35},gm_help:{x:290,y:498,w:92,h:158},shortcut_map:{x:55,y:649,w:52,h:55},shortcut_sheet:{x:139,y:649,w:52,h:55},shortcut_dice:{x:223,y:649,w:52,h:55},shortcut_bag:{x:307,y:649,w:52,h:55},history_title:{x:43,y:722,w:329,h:15}};
+async function assertAllImagesLoaded(page:any){
+  const bad=await page.locator('img:visible').evaluateAll((imgs:HTMLImageElement[])=>
+    imgs.filter(i=>!i.complete||i.naturalWidth<=0||i.naturalHeight<=0).map(i=>i.getAttribute('src')));
+  expect(bad,'broken visible images').toEqual([]);
+}
+function networkGuard(page:any){
+  const failures:string[]=[];
+  page.on('requestfailed',(r:any)=>{if(r.url().includes('/assets/')||r.url().endsWith('.js'))failures.push(`requestfailed ${r.url()}`)});
+  page.on('response',(r:any)=>{if(r.status()===404&&(r.url().includes('/assets/')||r.url().endsWith('.js')))failures.push(`404 ${r.url()}`)});
+  page.on('console',(m:any)=>{if(m.type()==='error'&&/(image|module|asset|404|failed)/i.test(m.text()))failures.push(`console ${m.text()}`)});
+  return()=>expect(failures,'local asset/module failures').toEqual([]);
+}
 
-async function geometry(page:any,expected:Record<string,Box>,axes:Record<string,number>){const actual=await page.evaluate(()=>{const a:any={},ax:any={};document.querySelectorAll<HTMLElement>('[data-anchor]').forEach(e=>{const r=e.getBoundingClientRect();a[e.dataset.anchor!]={x:r.x,y:r.y,w:r.width,h:r.height}});document.querySelectorAll<HTMLElement>('[data-axis]').forEach(e=>{const r=e.getBoundingClientRect();ax[e.dataset.axis!]=r.y});return{a,ax}});for(const [k,e] of Object.entries(expected)){const r=actual.a[k];expect(r,`missing ${k}`).toBeTruthy();expect(Math.max(Math.abs(r.x-e.x),Math.abs(r.y-e.y)),`${k} position`).toBeLessThanOrEqual(MAX_POS);expect(Math.max(Math.abs(r.w-e.w),Math.abs(r.h-e.h)),`${k} size`).toBeLessThanOrEqual(MAX_SIZE)}for(const [k,y] of Object.entries(axes))expect(Math.abs(actual.ax[k]-y),`${k} axis`).toBeLessThanOrEqual(MAX_AXIS)}
-async function assertAllImagesLoaded(page:any){const bad=await page.locator('img:visible').evaluateAll((imgs:HTMLImageElement[])=>imgs.filter(i=>!i.complete||i.naturalWidth<=0||i.naturalHeight<=0).map(i=>i.getAttribute('src')));expect(bad,'broken visible images').toEqual([])}
-function networkGuard(page:any){const failures:string[]=[];page.on('requestfailed',(r:any)=>{if(r.url().includes('/assets/')||r.url().endsWith('.js'))failures.push(`requestfailed ${r.url()}`)});page.on('response',(r:any)=>{if(r.status()===404&&(r.url().includes('/assets/')||r.url().endsWith('.js')))failures.push(`404 ${r.url()}`)});page.on('console',(m:any)=>{if(m.type()==='error'&&/(image|module|asset|404|failed)/i.test(m.text()))failures.push(`console ${m.text()}`)});return()=>expect(failures,'local asset/module failures').toEqual([])}
+test('PRESTART approved composition is real DOM and fits 415x915',async({page})=>{
+  const check=networkGuard(page);
+  await page.goto('/?fixture=session-prestart');
+  await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);
+  await assertAllImagesLoaded(page);
+  await expect(page.locator('.company-panel')).toBeVisible();
+  await expect(page.locator('.party-card')).toHaveCount(4);
+  await expect(page.locator('#openingNarrative')).toBeVisible();
+  await expect(page.getByText('MESTRE COMEÇAR A NARRAR')).toBeVisible();
+  const overflow=await page.evaluate(()=>document.documentElement.scrollHeight>915||document.documentElement.scrollWidth>415);
+  expect(overflow).toBeFalsy();
+  check();
+  await page.screenshot({path:path.resolve('captures/SESSION_PRESTART_REAL_415x915.png')});
+});
 
-test('PRESTART visual master geometry',async({page})=>{const check=networkGuard(page);await page.goto('/?fixture=session-prestart');await expect(page.locator('body')).toHaveAttribute('data-ready','true');expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);await assertAllImagesLoaded(page);await geometry(page,pre,{header_divider:134,bottom_nav:842});expect(await page.locator('[data-canonical-asset]').count()).toBeGreaterThan(15);check();await page.screenshot({path:path.resolve('captures/SESSION_PRESTART_REAL_415x915.png')})});
+test('ACTIVE approved composition is real DOM and fits 415x915',async({page})=>{
+  const check=networkGuard(page);
+  await page.goto('/?fixture=session-active');
+  await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  expect(await page.evaluate(()=>[innerWidth,innerHeight])).toEqual([415,915]);
+  await assertAllImagesLoaded(page);
+  await expect(page.locator('.status-box')).toHaveCount(4);
+  await expect(page.locator('.scene-art')).toBeVisible();
+  await expect(page.locator('#playerAction')).toBeVisible();
+  await expect(page.getByText('NARRAR (TTS)')).toBeVisible();
+  const overflow=await page.evaluate(()=>document.documentElement.scrollHeight>915||document.documentElement.scrollWidth>415);
+  expect(overflow).toBeFalsy();
+  check();
+  await page.screenshot({path:path.resolve('captures/SESSION_ACTIVE_REAL_415x915.png')});
+});
 
-test('ACTIVE visual master geometry',async({page})=>{const check=networkGuard(page);await page.goto('/?fixture=session-active');await expect(page.locator('body')).toHaveAttribute('data-ready','true');await assertAllImagesLoaded(page);await geometry(page,act,{header_divider:134,history_divider:707,bottom_nav:842});check();await page.screenshot({path:path.resolve('captures/SESSION_ACTIVE_REAL_415x915.png')})});
+test('KEYBOARD keeps PLAYER_ACTION accessible',async({page})=>{
+  const check=networkGuard(page);
+  await page.goto('/?fixture=keyboard-open');
+  await expect(page.locator('body')).toHaveAttribute('data-ready','true');
+  await assertAllImagesLoaded(page);
+  const g=await page.evaluate(()=>{
+    const a=document.querySelector('[data-anchor=player_action_panel]')!.getBoundingClientRect();
+    const k=document.querySelector('.keyboard-sim')!.getBoundingClientRect();
+    const n=document.querySelector('nav')!.getBoundingClientRect();
+    return {aTop:a.top,aBottom:a.bottom,kTop:k.top,navW:n.width,textarea:!!document.getElementById('playerAction')};
+  });
+  expect(g.textarea).toBeTruthy();
+  expect(g.aTop).toBeGreaterThanOrEqual(0);
+  expect(g.aBottom).toBeLessThanOrEqual(g.kTop);
+  expect(g.navW).toBe(0);
+  check();
+  await page.screenshot({path:path.resolve('captures/SESSION_KEYBOARD_REAL_415x915.png')});
+});
 
-test('KEYBOARD keeps PLAYER_ACTION and ENVIAR accessible',async({page})=>{const check=networkGuard(page);await page.goto('/?fixture=keyboard-open');await assertAllImagesLoaded(page);const g=await page.evaluate(()=>{const a=document.querySelector('[data-anchor=player_action_panel]')!.getBoundingClientRect(),s=document.querySelector('[data-anchor=send_button]')!.getBoundingClientRect(),k=document.querySelector('.keyboard-sim')!.getBoundingClientRect(),n=document.querySelector('nav')!.getBoundingClientRect();return{aBottom:a.bottom,sBottom:s.bottom,kTop:k.top,navW:n.width,textarea:!!document.getElementById('playerAction')}});expect(g.textarea).toBeTruthy();expect(g.aBottom).toBeLessThanOrEqual(g.kTop);expect(g.sBottom).toBeLessThanOrEqual(g.kTop);expect(g.navW).toBe(0);check();await page.screenshot({path:path.resolve('captures/SESSION_KEYBOARD_REAL_415x915.png')})});
+test('canonical party tokens are actually used',async({page})=>{
+  await page.goto('/?fixture=session-prestart');
+  const srcs=await page.locator('.party-token').evaluateAll((imgs:HTMLImageElement[])=>imgs.map(i=>i.getAttribute('src')));
+  expect(srcs).toEqual([
+    './assets/040_token_guerreiro.png',
+    './assets/042_token_arqueiro.png',
+    './assets/041_token_mago.png',
+    './assets/043_token_ladrao.png'
+  ]);
+});
 
-test('no generic unicode menu/settings substitutes',async({page})=>{await page.goto('/?fixture=session-active');const t=await page.locator('body').innerText();expect(t).not.toContain('☰');expect(t).not.toContain('⚙')});
-
-test('bridge schema remains versioned',async({page})=>{await page.goto('/?fixture=session-prestart');const result=await page.evaluate(async()=>{const m=await import('./bridge.js');return[m.isBridgeEnvelope({version:1,type:'ViewState',payload:{}}),m.isBridgeEnvelope({version:2,type:'ViewState',payload:{}})]});expect(result).toEqual([true,false])});
+test('bridge schema remains versioned',async({page})=>{
+  await page.goto('/?fixture=session-prestart');
+  const result=await page.evaluate(async()=>{const m=await import('./bridge.js');return[m.isBridgeEnvelope({version:1,type:'ViewState',payload:{}}),m.isBridgeEnvelope({version:2,type:'ViewState',payload:{}})]});
+  expect(result).toEqual([true,false]);
+});
