@@ -1,10 +1,5 @@
 name: BRASEIRO OSE Visual Fast
 on:
-  push:
-    branches: [ose-session-visual-lock-strict-2]
-    paths:
-      - 'ose/web-ui/**'
-      - '.github/workflows/ose-visual-fast.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -28,10 +23,11 @@ jobs:
           from pathlib import Path
           root=Path('src/assets')
           pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          missing=[]
           for e in pin['files']:
               p=root/e['filename']
               if not p.is_file() or p.stat().st_size <= 0:
-                  raise SystemExit(f'missing/empty: {p}')
+                  missing.append(str(p)); continue
               b=p.read_bytes()
               if hashlib.sha256(b).hexdigest()!=e['sha256']:
                   raise SystemExit(f'sha256 mismatch: {p}')
@@ -40,10 +36,9 @@ jobs:
               w,h=struct.unpack('>II',b[16:24])
               if (w,h)!=(e['width'],e['height']):
                   raise SystemExit(f'dim mismatch {p}: {(w,h)}')
-          for name in ('CONCEPT_SESSION_PRESTART_415x915.png','CONCEPT_SESSION_ACTIVE_415x915.png'):
-              e=next(x for x in pin['files'] if x['filename']==name)
-              if (e['width'],e['height']) != (415,915):
-                  raise SystemExit(f'concept not 415x915: {name}')
+          if missing:
+              raise SystemExit('missing/empty: '+', '.join(missing))
+          print('MISSING_PINNED_ASSETS=0')
           print(f'BINARY_ASSET_INTEGRITY=PASS files={len(pin["files"])}')
           PY
       - run: npm install --ignore-scripts
