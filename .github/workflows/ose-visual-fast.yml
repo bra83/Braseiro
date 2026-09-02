@@ -1,6 +1,10 @@
 name: BRASEIRO OSE Visual Fast
 on:
   workflow_dispatch:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - 'ose/web-ui/src/strict-overrides.css'
 permissions:
   contents: read
 jobs:
