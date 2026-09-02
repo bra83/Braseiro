@@ -1,2 +1,17 @@
 /* Visual master recomposition: no legacy geometric overrides. */
 /* Visual Fast trigger: approved-master refinement pass. */
+
+/* Active Session refinement: keep narrative readable above the procedural context. */
+.active .narration-copy{height:158px}
+.active .narration-copy p{height:96px;overflow:auto;padding-bottom:12px}
+.active .narration-copy::after{
+  content:"";
+  position:absolute;
+  left:0;right:5px;bottom:0;height:18px;
+  pointer-events:none;
+  background:linear-gradient(transparent,rgba(225,198,143,.92));
+}
+.active .context-frame{z-index:4}
+.active .context-caption{letter-spacing:.05px}
+.active .action-input:focus-within{box-shadow:0 0 0 2px rgba(117,42,31,.22)}
+.active .quick-actions button:active,.active .narrate-tts:active{transform:translateY(1px)}
