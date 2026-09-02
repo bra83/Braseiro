@@ -1,4 +1,4 @@
-# final-retry-after-canonical-a201
+# canonical-a201-vendor-retry
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
