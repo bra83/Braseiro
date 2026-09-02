@@ -1,4 +1,4 @@
-# vendor-marker-current
+# vendor-marker-pre-ref-fix
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
