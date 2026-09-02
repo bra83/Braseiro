@@ -1,4 +1,3 @@
-# run-vendor-from-canonical-a201-head
 name: BRASEIRO OSE Vendor Session Assets Once
 on:
   push:
@@ -22,12 +21,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p src/assets
+          cat src/assets/.bootstrap-a201/part*.txt | tr -d '\n\r' | base64 -d > src/assets/OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png
           python3 - <<'PY' > /tmp/assets.tsv
           import json, hashlib
           from pathlib import Path
           root=Path('src/assets')
           p=json.load(open(root/'VISUAL_LOCK_BINARY_PIN.json'))
           for e in p['files']:
+              if e['filename']=='OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png':
+                  continue
               f=root/e['filename']
               if f.is_file() and hashlib.sha256(f.read_bytes()).hexdigest()==e['sha256']:
                   continue
@@ -65,6 +67,7 @@ jobs:
           git config user.name 'braseiro-build-bot'
           git config user.email 'actions@users.noreply.github.com'
           git add ose/web-ui/src/assets/*.png ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json
+          git rm -r ose/web-ui/src/assets/.bootstrap-a201
           git rm .github/workflows/ose-vendor-session-assets-once.yml
           git commit -m 'Visual Lock hotfix: vendor pinned Session assets and concepts'
           git push origin HEAD:ose-session-visual-lock-strict-2
