@@ -1,11 +1,6 @@
 name: BRASEIRO OSE Visual Lock Final Gate
 
 on:
-  push:
-    branches: [ose-session-visual-lock-strict-2]
-    paths:
-      - "ose/**"
-      - ".github/workflows/ose-visual-lock-final.yml"
   workflow_dispatch:
 
 permissions:
