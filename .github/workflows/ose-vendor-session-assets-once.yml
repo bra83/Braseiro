@@ -1,49 +1,97 @@
-name: BRASEIRO OSE Vendor Session Assets Once
+name: BRASEIRO OSE Batch Vendor Pinned Assets
 on:
   push:
     branches: [ose-session-visual-lock-strict-2]
     paths:
       - '.github/workflows/ose-vendor-session-assets-once.yml'
+  workflow_dispatch:
 permissions:
   contents: write
   actions: write
 jobs:
-  vendor:
+  vendor-batch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ose-session-visual-lock-strict-2
           fetch-depth: 1
-      - name: Materialize exact pinned binaries once
+
+      - name: Reconstruct already-bootstrapped canonical binaries
         shell: bash
         working-directory: ose/web-ui
         run: |
           set -euo pipefail
-          mkdir -p src/assets
-          cat src/assets/.bootstrap-a201/part*.txt | tr -d '\n\r' | base64 -d > src/assets/OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png
-          cat src/assets/.bootstrap-a202/part*.txt | tr -d '\n\r' | base64 -d > src/assets/OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png
-          python3 - <<'PY' > /tmp/assets.tsv
-          import json, hashlib
+          root=src/assets
+          if compgen -G "$root/.bootstrap-a201/part*.txt" >/dev/null; then
+            cat "$root"/.bootstrap-a201/part*.txt | tr -d '\n\r' | base64 -d > "$root/OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png"
+          fi
+          if compgen -G "$root/.bootstrap-a202/part*.txt" >/dev/null; then
+            cat "$root"/.bootstrap-a202/part*.txt | tr -d '\n\r' | base64 -d > "$root/OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png"
+          fi
+          if [ -f "$root/.bootstrap-special/OSE_SESSION_A501_icone_gm_help.b64" ]; then
+            tr -d '\n\r' < "$root/.bootstrap-special/OSE_SESSION_A501_icone_gm_help.b64" | base64 -d > "$root/OSE_SESSION_A501_icone_gm_help.png"
+          fi
+          if [ -f "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" ]; then
+            tr -d '\n\r' < "$root/.bootstrap-special/OSE_SESSION_A502_frame_narracao_flexivel.b64" | base64 -d > "$root/OSE_SESSION_A502_frame_narracao_flexivel.png"
+          fi
+
+      - name: Fetch every remaining pin in one batch
+        shell: bash
+        working-directory: ose/web-ui
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet 'gdown==5.2.0'
+          python3 - <<'PY'
+          import json, hashlib, struct, shutil
           from pathlib import Path
+          import gdown
+
           root=Path('src/assets')
-          pinned={'OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png','OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png'}
-          p=json.load(open(root/'VISUAL_LOCK_BINARY_PIN.json'))
-          for e in p['files']:
-              if e['filename'] in pinned:
+          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+
+          def exact(p,e):
+              if not p.is_file() or p.stat().st_size <= 0:
+                  return False
+              b=p.read_bytes()
+              if hashlib.sha256(b).hexdigest()!=e['sha256']:
+                  return False
+              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
+                  return False
+              w,h=struct.unpack('>II',b[16:24])
+              return (w,h)==(e['width'],e['height'])
+
+          failures=[]
+          for e in pin['files']:
+              out=root/e['filename']
+              if exact(out,e):
+                  print('PIN_READY',e['filename'])
                   continue
-              f=root/e['filename']
-              if f.is_file() and hashlib.sha256(f.read_bytes()).hexdigest()==e['sha256']:
-                  continue
-              print(e['source_drive_file_id']+'\t'+e['filename'])
+              tmp=out.with_suffix(out.suffix+'.download')
+              tmp.unlink(missing_ok=True)
+              ok=False
+              for cookies in (True,False):
+                  try:
+                      got=gdown.download(id=e['source_drive_file_id'], output=str(tmp), quiet=False, use_cookies=cookies)
+                  except Exception as exc:
+                      print('GDOWN_EXCEPTION',e['filename'],repr(exc))
+                      got=None
+                  if got and exact(tmp,e):
+                      shutil.move(tmp,out)
+                      ok=True
+                      break
+                  if tmp.exists():
+                      print('GDOWN_REJECT',e['filename'],hashlib.sha256(tmp.read_bytes()).hexdigest(),tmp.stat().st_size)
+                      tmp.unlink()
+              if not ok:
+                  failures.append(e['filename'])
+              else:
+                  print('PIN_FETCHED',e['filename'])
+          if failures:
+              raise SystemExit('BATCH_FETCH_FAILED: '+', '.join(failures))
           PY
-          while IFS=$'\t' read -r id name; do
-            [ -n "$id" ] || continue
-            curl -L --fail --retry 4 --retry-all-errors --silent --show-error \
-              "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" \
-              -o "src/assets/${name}"
-          done < /tmp/assets.tsv
-      - name: Verify SHA-256 PNG decode metadata and concept dimensions
+
+      - name: Validate complete pin batch before Playwright
         shell: bash
         working-directory: ose/web-ui
         run: |
@@ -53,31 +101,61 @@ jobs:
           from pathlib import Path
           root=Path('src/assets')
           pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          missing=[]
           for e in pin['files']:
-              p=root/e['filename']; b=p.read_bytes()
+              p=root/e['filename']
+              if not p.is_file() or p.stat().st_size <= 0:
+                  missing.append(e['filename']); continue
+              b=p.read_bytes()
               got=hashlib.sha256(b).hexdigest()
-              if got != e['sha256']: raise SystemExit(f'SHA mismatch {p.name}: {got} != {e["sha256"]}')
-              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR': raise SystemExit(f'not valid PNG: {p.name}')
+              if got != e['sha256']:
+                  raise SystemExit(f'SHA mismatch {p.name}: {got} != {e["sha256"]}')
+              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
+                  raise SystemExit(f'not valid PNG: {p.name}')
               w,h=struct.unpack('>II',b[16:24])
-              if (w,h)!=(e['width'],e['height']): raise SystemExit(f'dim mismatch {p.name}: {(w,h)}')
+              if (w,h)!=(e['width'],e['height']):
+                  raise SystemExit(f'dim mismatch {p.name}: {(w,h)} != {(e["width"],e["height"])}')
+          if missing:
+              raise SystemExit('MISSING_PINNED_ASSETS='+str(len(missing))+' '+','.join(missing))
+          print('MISSING_PINNED_ASSETS=0')
           print('BINARY_ASSET_INTEGRITY=PASS')
+          print('PINNED_FILES='+str(len(pin['files'])))
           PY
-      - name: Commit vendored binaries and retire one-shot vendor
+
+      - name: Clean bootstrap residue and re-enable Visual Fast
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ose/web-ui/src/assets/.bootstrap-a201 ose/web-ui/src/assets/.bootstrap-a202 ose/web-ui/src/assets/.bootstrap-special
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/ose-visual-fast.yml')
+          s=p.read_text()
+          old="on:\n  workflow_dispatch:\npermissions:"
+          new="on:\n  push:\n    branches: [ose-session-visual-lock-strict-2]\n    paths:\n      - 'ose/web-ui/**'\n      - '.github/workflows/ose-visual-fast.yml'\n  workflow_dispatch:\npermissions:"
+          if old not in s:
+              raise SystemExit('Visual Fast pause marker not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          git rm .github/workflows/ose-vendor-session-assets-once.yml
+
+      - name: Commit complete canonical batch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'braseiro-build-bot'
           git config user.email 'actions@users.noreply.github.com'
-          git add ose/web-ui/src/assets/*.png ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json
-          git rm -r ose/web-ui/src/assets/.bootstrap-a201 ose/web-ui/src/assets/.bootstrap-a202
-          git rm .github/workflows/ose-vendor-session-assets-once.yml
-          git commit -m 'Visual Lock hotfix: vendor pinned Session assets and concepts'
+          git add ose/web-ui/src/assets .github/workflows/ose-visual-fast.yml
+          git commit -m 'Visual Lock accelerator: vendor complete pinned asset batch'
           git push origin HEAD:ose-session-visual-lock-strict-2
-      - name: Dispatch clean Visual Fast on vendored commit
+          echo "FINAL_BATCH_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Dispatch exactly one Visual Fast
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/ose-visual-fast.yml/dispatches" -f ref=ose-session-visual-lock-strict-2
-          echo 'VISUAL_FAST_DISPATCHED=YES'
+          echo 'VISUAL_FAST_DISPATCHED_ONCE=YES'
+          echo "FINAL_BATCH_COMMIT=${FINAL_BATCH_COMMIT}"
