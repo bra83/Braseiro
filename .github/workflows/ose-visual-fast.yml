@@ -19,39 +19,46 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Materialize canonical Session assets and concepts
+      - name: Validate pinned binary assets
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p src/assets
-          get(){ id="$1"; out="$2"; curl -L --fail --retry 3 --silent --show-error "https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t" -o "src/assets/${out}"; test -s "src/assets/${out}"; }
-          get 1bWHOJGRf6knN_vf8lZvaHCXaDm34drQ- 001_logo_ose.png
-          get 1NSYNnQG8kjIrSye5Yk8BkZpiHgeXzamM 002_icone_menu.png
-          get 1C0QlEDWxGFYIIHnnP6HwQ2iv8_YwBwq- 003_icone_configuracoes.png
-          get 1TAW8B__Lz2-NzB-97VEnco4Hgqhh8sIa 006_icone_pergaminho.png
-          get 1srrtdHIT6S1D2naRXxB4Xz6Ccmj1xwOh 008_status_tocha_30m.png
-          get 1q12s1B8Vtv20dF9m0TXn8gaF98flGs4V 010_status_movimento_90.png
-          get 17NnihrrFHcfYk-ItSeW7YklBSFOh8kPH 011_icone_d20.png
-          get 1vp8eQSDW9GnSWgDojpk3n-LgaB21KrdI 012_icone_livros.png
-          get 1zNJL2sCVodABWAvTLaqa-ax5Zd5r5C0N 013_icone_mapa.png
-          get 1CPlmdy1DLFl6Di0FUMQdTFEZd2Cy5XH8 014_icone_grupo.png
-          get 1FA6o2HyEmv_59guBr8e6ZVQAB6cRjuBy 015_icone_mochila.png
-          get 15HWg7v5kO7bYnuI2Oq4G26Vz6yYFf2Ed 072_painel_pergaminho_pautado.png
-          get 11kPNbRFJeuycI3b7kbEeygdj0tWvG8yW 075_painel_pergaminho_rustico.png
-          get 1lt36DKcnRqOOT4gfFI53eK0kqiC1w3_c OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png
-          get 193_1ypOmJrGGnN1IobyCfxxaxbWMyuYz OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png
-          get 1irWqc24uREVCEnoKGQ6ynQe86fWt-fIh OSE_SESSION_A501_icone_gm_help.png
-          get 1VOkRyh1OxohDz8ju7y5FMhRK2f9B7tlI OSE_SESSION_A502_frame_narracao_flexivel.png
-          get 1xbGqfD4xdmWwr2JH_9nLghuYA6ZqAnsm OSE_SESSION_NEW_A701_icone_tts_ouvir.png
-          get 1AViIBLKkZwI1y3g8BTfEu63R6UIaug_0 CONCEPT_SESSION_PRESTART_415x915.png
-          get 1Mf6l7-kedPSfLmfYOft2WEnNjaik5An7 CONCEPT_SESSION_ACTIVE_415x915.png
+          python3 - <<'PY'
+          import json, hashlib, struct
+          from pathlib import Path
+          root=Path('src/assets')
+          pin=json.loads((root/'VISUAL_LOCK_BINARY_PIN.json').read_text())
+          for e in pin['files']:
+              p=root/e['filename']
+              if not p.is_file() or p.stat().st_size <= 0:
+                  raise SystemExit(f'missing/empty: {p}')
+              b=p.read_bytes()
+              if hashlib.sha256(b).hexdigest()!=e['sha256']:
+                  raise SystemExit(f'sha256 mismatch: {p}')
+              if b[:8] != b'\x89PNG\r\n\x1a\n' or b[12:16] != b'IHDR':
+                  raise SystemExit(f'not PNG: {p}')
+              w,h=struct.unpack('>II',b[16:24])
+              if (w,h)!=(e['width'],e['height']):
+                  raise SystemExit(f'dim mismatch {p}: {(w,h)}')
+          for name in ('CONCEPT_SESSION_PRESTART_415x915.png','CONCEPT_SESSION_ACTIVE_415x915.png'):
+              e=next(x for x in pin['files'] if x['filename']==name)
+              if (e['width'],e['height']) != (415,915):
+                  raise SystemExit(f'concept not 415x915: {name}')
+          print(f'BINARY_ASSET_INTEGRITY=PASS files={len(pin["files"])}')
+          PY
       - run: npm install --ignore-scripts
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Playwright 415x915 + overlay + anchors
+      - name: Playwright 415x915 + real overlay + anchors
         run: npm run test:capture
       - uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES
-          path: ose/web-ui/captures/*.png
+          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V2
+          path: |
+            ose/web-ui/captures/SESSION_PRESTART_REAL_415x915.png
+            ose/web-ui/captures/SESSION_ACTIVE_REAL_415x915.png
+            ose/web-ui/captures/SESSION_KEYBOARD_REAL_415x915.png
+            ose/web-ui/captures/DEBUG_PRESTART_OVERLAY_50.png
+            ose/web-ui/captures/DEBUG_ACTIVE_OVERLAY_50.png
+            ose/web-ui/src/assets/VISUAL_LOCK_BINARY_PIN.json
           if-no-files-found: error
