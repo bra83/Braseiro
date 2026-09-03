@@ -7,7 +7,7 @@ const fixture=()=>{const q=new URLSearchParams(location.search).get('fixture') a
 const overlayEnabled=()=>new URLSearchParams(location.search).get('conceptOverlay')==='1';
 
 function header(title:string,subtitle:string){return `<header class="ose-header">
-  ${img('001_logo_ose.png','ose-logo','header_logo')}
+  <span class="ose-logo-box" data-anchor="header_logo">${img('001_logo_ose.png','ose-logo')}</span>
   <h1 data-anchor="header_title">${title}</h1>
   <p data-anchor="header_subtitle">${subtitle}</p>
   <button class="top-icon menu" data-anchor="menu" aria-label="Menu">${img('002_icone_menu.png')}</button>
