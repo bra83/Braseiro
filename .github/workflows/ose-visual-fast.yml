@@ -29,14 +29,16 @@ jobs:
         run: npm run build
       - name: Playwright install
         run: npx playwright install --with-deps chromium
-      - name: Playwright 415x915 real DOM captures
+      - name: Playwright strict 415x915 + concept overlays
         run: npm run test:capture
-      - name: Upload real Session captures
+      - name: Upload strict Session captures
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_V3
+          name: BRASEIRO_OSE_VISUAL_FAST_CAPTURES_STRICT
           path: |
             ose/web-ui/captures/SESSION_PRESTART_REAL_415x915.png
             ose/web-ui/captures/SESSION_ACTIVE_REAL_415x915.png
             ose/web-ui/captures/SESSION_KEYBOARD_REAL_415x915.png
+            ose/web-ui/captures/DEBUG_PRESTART_OVERLAY_50.png
+            ose/web-ui/captures/DEBUG_ACTIVE_OVERLAY_50.png
           if-no-files-found: error
