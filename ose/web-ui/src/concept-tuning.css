@@ -9,7 +9,10 @@
 .rail-item img{transform:translateX(-2px) scale(1.09,1.20);transform-origin:center}
 .prestart-action-art{transform:scale(1.10,1.16);transform-origin:center;filter:brightness(1.04) saturate(.94)}
 .prestart-help-icon img{transform:scale(1.16);transform-origin:center}
-.start-cta{background-size:112% 108%!important;color:#f8ead0!important;text-shadow:0 1px 1px rgba(55,25,15,.55)!important}
+.prep-content dd{margin:11px 0 26px!important}
+.prep-note{bottom:25px!important}
+.start-cta{background-size:112% 108%!important;color:#f8ead0!important;text-shadow:0 1px 1px rgba(55,25,15,.55)!important;display:flex!important;align-items:center!important;justify-content:center!important;text-align:center!important}
+.start-cta span{display:block;white-space:nowrap;transform:translateX(0)}
 .prestart-gm{left:257px!important;top:646px!important;width:78px!important;height:48px!important;background-size:114% 124%!important}
 .prestart-gm-note{left:220px!important;right:auto!important;top:716px!important;width:115px;text-align:center}
 
@@ -27,5 +30,6 @@
 .prestart-strict .ose-header h1{width:154px;font-size:17px;line-height:22px}
 .prestart-strict .ose-header p{width:206px}
 .active-strict .ose-header h1{width:220px;font-size:16px;line-height:22px}
-.narration-text p{font-size:8.9px!important;line-height:1.36!important}
+.narration-text strong{margin-bottom:9px!important}
+.narration-text p{font-size:11px!important;line-height:1.20!important}
 .history-scroll{font-size:7.6px!important;line-height:1.42!important}
