@@ -1,3 +1,3 @@
 SESSION_VISUAL_LOCK_FINAL_GATE
-source_commit=928f9097493e267e30e660cd5a5f20feb1ac771f
+source_commit=1ddf15992ae2738b01b3e4f25736ae5e7451f5a8
 reason=canonical_PRESTART_ACTIVE_KEYBOARD_415x915_visual_lock
