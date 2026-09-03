@@ -6,10 +6,10 @@ mkdirSync(path.resolve('captures'),{recursive:true});
 const TOL=4, SIZE_TOL=6;
 type Box={x:number,y:number,w:number,h:number};
 const P:Record<string,Box>={
-  pre_header_logo:{x:18,y:6,w:105,h:52}, pre_prep:{x:40,y:159,w:229,h:292}, pre_start:{x:168,y:496,w:78,h:45},
+  pre_header_logo:{x:18,y:6,w:98,h:49}, pre_prep:{x:40,y:159,w:229,h:292}, pre_start:{x:168,y:496,w:78,h:45},
   pre_party:{x:311,y:158,w:39,h:39}, pre_map:{x:311,y:223,w:39,h:39}, pre_dice:{x:311,y:289,w:39,h:39}, pre_bag:{x:311,y:355,w:39,h:39},
   pre_action:{x:74,y:591,w:82,h:49}, pre_tts:{x:246,y:579,w:58,h:57}, pre_gm:{x:257,y:646,w:78,h:48},
-  act_header_logo:{x:18,y:6,w:105,h:52}, act_light:{x:22,y:82,w:53,h:46}, act_move:{x:103,y:82,w:53,h:46}, act_dice:{x:183,y:82,w:53,h:46}, act_party:{x:263,y:82,w:53,h:46},
+  act_header_logo:{x:18,y:6,w:98,h:49}, act_light:{x:22,y:82,w:53,h:46}, act_move:{x:103,y:82,w:53,h:46}, act_dice:{x:183,y:82,w:53,h:46}, act_party:{x:263,y:82,w:53,h:46},
   act_narration:{x:29,y:153,w:313,h:168}, act_tts:{x:357,y:158,w:40,h:39}, act_action:{x:95,y:363,w:122,h:171}, act_send:{x:192,y:498,w:57,h:36}, act_gm:{x:317,y:440,w:65,h:39},
   act_qmap:{x:28,y:579,w:40,h:34}, act_qsheet:{x:122,y:579,w:40,h:34}, act_qdice:{x:216,y:579,w:40,h:34}, act_qbag:{x:309,y:579,w:40,h:34}
 };
