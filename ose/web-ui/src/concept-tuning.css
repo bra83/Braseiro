@@ -30,6 +30,7 @@
 .prestart-strict .ose-header h1{width:154px;font-size:17px;line-height:22px}
 .prestart-strict .ose-header p{width:206px}
 .active-strict .ose-header h1{width:220px;font-size:16px;line-height:22px}
-.narration-text strong{margin-bottom:9px!important}
-.narration-text p{font-size:11px!important;line-height:1.20!important}
+.narration-text strong{font-size:9px!important;line-height:10px!important;margin-bottom:8px!important}
+.narration-text p{font-size:10.1px!important;line-height:1.31!important}
+.narration-text::after{content:"";position:absolute;right:1px;top:35px;width:4px;height:39px;border-radius:4px;background:#8b3025;pointer-events:none}
 .history-scroll{font-size:7.6px!important;line-height:1.42!important}
