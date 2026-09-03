@@ -55,16 +55,53 @@ jobs:
       - name: Android unit lint debug
         working-directory: ose
         run: ./gradlew :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug --stacktrace
-      - name: Upload real visual captures
+      - name: Prepare source evidence archive
+        run: git archive --format=zip --output="$RUNNER_TEMP/BRASEIRO_OSE_VISUAL_LOCK_SOURCE.zip" HEAD ose .github/workflows/ose-visual-lock-final.yml .github/ose-visual-lock-final.trigger
+      - name: Upload final real visual captures
         uses: actions/upload-artifact@v4
         with:
           name: BRASEIRO_OSE_VISUAL_LOCK_FINAL_CAPTURES
           path: ose/web-ui/captures/*.png
           if-no-files-found: error
+      - name: Upload canonical capture evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_CAPTURES
+          path: |
+            ose/web-ui/captures/SESSION_PRESTART_REAL_415x915.png
+            ose/web-ui/captures/SESSION_ACTIVE_REAL_415x915.png
+            ose/web-ui/captures/SESSION_KEYBOARD_REAL_415x915.png
+          if-no-files-found: error
+      - name: Upload debug overlay evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_DEBUG_OVERLAYS
+          path: |
+            ose/web-ui/captures/DEBUG_PRESTART_OVERLAY_50.png
+            ose/web-ui/captures/DEBUG_ACTIVE_OVERLAY_50.png
+          if-no-files-found: error
+      - name: Upload GUIDE visual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_REPORT
+          path: ose/docs/BRASEIRO_OSE_SESSION_VISUAL_LOCK_REVIEW.md
+          if-no-files-found: error
+      - name: Upload source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_SOURCE
+          path: ${{ runner.temp }}/BRASEIRO_OSE_VISUAL_LOCK_SOURCE.zip
+          if-no-files-found: error
       - name: Upload internal APK
         uses: actions/upload-artifact@v4
         with:
           name: BRASEIRO_OSE_VISUAL_LOCK_FINAL_APK
+          path: ose/app-android/build/outputs/apk/debug/app-android-debug.apk
+          if-no-files-found: error
+      - name: Upload canonical internal APK evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_VISUAL_LOCK_INTERNAL_APK
           path: ose/app-android/build/outputs/apk/debug/app-android-debug.apk
           if-no-files-found: error
 
@@ -118,4 +155,8 @@ jobs:
           echo 'PLAYWRIGHT_415x915=PASS'
           echo 'ANDROID_BUILD=PASS'
           echo 'WEBVIEW_EMULATOR=PASS'
+          echo 'GUIDE_VISUAL_REAUDIT=PASS'
+          echo 'SESSION_VISUAL_LOCK=PASS'
+          echo 'GLOBAL_VISUAL_LANGUAGE=PROVISIONAL_LOCKED_FROM_SESSION'
+          echo 'WAVE_3=NOT_STARTED'
           echo 'PHYSICAL_DEVICE=NOT_RUN'
