@@ -51,7 +51,7 @@ function prestart(){return `<main class="screen ose-session prestart-strict">
     ${railItem('015_icone_mochila.png','BOLSA','rail_bag')}
   </aside>
   <button class="start-cta" data-anchor="start_cta"><span>COMEÇAR A NARRAR</span></button>
-  <div class="prestart-action" data-anchor="player_action">${img('071_painel_pergaminho_liso.png','prestart-action-art')}<span>PLAYER_ACTION</span></div>
+  <div class="prestart-action" data-anchor="player_action">${img('075_painel_pergaminho_rustico.png','prestart-action-art')}<span>PLAYER_ACTION</span></div>
   <small class="prestart-action-note">indisponível</small>
   <button class="prestart-help-icon" data-anchor="tts_control" aria-label="Ajuda do mestre">${img('OSE_SESSION_A501_icone_gm_help.png')}</button>
   <button class="prestart-gm" data-anchor="gm_help">GM_HELP</button>
