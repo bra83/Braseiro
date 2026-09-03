@@ -4,128 +4,135 @@ import { BRIDGE_VERSION, postBridge } from './bridge.js';
 const A='./assets/';
 const img=(n:string,c='',a='')=>`<img ${a?`data-anchor="${a}"`:''} class="${c}" data-canonical-asset="${n}" src="${A}${n}" alt="">`;
 const fixture=()=>{const q=new URLSearchParams(location.search).get('fixture') as FixtureId|null;return q&&q in fixtures?q:'session-prestart'};
+const overlayEnabled=()=>new URLSearchParams(location.search).get('conceptOverlay')==='1';
 
-const header=(subtitle:string)=>`<header class="master-header">
-  <div class="brand-mark">${img('001_logo_ose.png','brand-logo','header_logo')}</div>
-  <button class="header-button menu" aria-label="Menu">${img('002_icone_menu.png')}</button>
-  <button class="header-button settings" aria-label="Configurações">${img('003_icone_configuracoes.png')}</button>
-  <div class="header-d20">${img('011_icone_d20.png')}</div>
-  <p class="header-subtitle">${subtitle}</p>
-  <i class="ornament-line"></i>
-</header>`;
+function header(title:string,subtitle:string){return `<header class="ose-header">
+  ${img('001_logo_ose.png','ose-logo','header_logo')}
+  <h1 data-anchor="header_title">${title}</h1>
+  <p data-anchor="header_subtitle">${subtitle}</p>
+  <button class="top-icon menu" data-anchor="menu" aria-label="Menu">${img('002_icone_menu.png')}</button>
+  <button class="top-icon settings" data-anchor="settings" aria-label="Configurações">${img('003_icone_configuracoes.png')}</button>
+  <i class="header-divider"></i>
+</header>`}
 
-const nav=()=>`<nav class="bottom-nav">
-  <button class="sel">${img('006_icone_pergaminho.png')}<span>SESSÃO</span></button>
-  <button>${img('013_icone_mapa.png')}<span>MAPA</span></button>
-  <button>${img('012_icone_livros.png')}<span>FICHA</span></button>
-  <button>${img('014_icone_grupo.png')}<span>COMPANHIA</span></button>
-</nav>`;
+function bottomNav(){return `<nav class="ose-bottom-nav">
+  <button class="selected" data-anchor="bottom_session">${img('006_icone_pergaminho.png')}<span>SESSÃO</span></button>
+  <button data-anchor="bottom_map">${img('013_icone_mapa.png')}<span>MAPA</span></button>
+  <button data-anchor="bottom_sheet">${img('012_icone_livros.png')}<span>FICHA</span></button>
+  <button data-anchor="bottom_bag">${img('015_icone_mochila.png')}<span>BOLSA</span></button>
+</nav>`}
 
-const partyCard=(asset:string,name:string,klass:string,level:string)=>`<article class="party-card">
-  ${img(asset,'party-token')}
-  <strong>${name}</strong><span>${klass}</span><small>${level}</small>
-</article>`;
+const railItem=(asset:string,label:string,anchor:string)=>`<button class="rail-item" data-anchor="${anchor}">${img(asset)}<span>${label}</span></button>`;
+const quick=(asset:string,label:string,anchor:string)=>`<button class="quick-item" data-anchor="${anchor}">${img(asset)}<span>${label}</span></button>`;
 
-function prestart(){return `<main class="screen prestart">
-  ${header('Cavernas do Caos  •  Preparação da Sessão')}
+function prestart(){return `<main class="screen ose-session prestart-strict">
+  ${header('NOVA SESSÃO','SESSION_PRESTART • narrativa ainda não iniciada')}
 
-  <section class="parchment-panel prep-hero" data-anchor="prep_panel">
-    ${img('075_painel_pergaminho_rustico.png','panel-art')}
-    <div class="door-medallion">${img('032_icone_porta.png')}</div>
-    <div class="prep-copy">
-      <h1>PREPARAÇÃO DA SESSÃO</h1>
-      <i></i>
-      <p>Defina a posição inicial, apresente o ponto de partida e prepare o terreno para a aventura.</p>
+  <section class="ready-block">
+    ${img('006_icone_pergaminho.png','ready-icon','ready_icon')}
+    <h2 data-anchor="ready_title">PRONTO PARA COMEÇAR</h2>
+    <p data-anchor="ready_subtitle">Party e posição inicial definidas.</p>
+  </section>
+
+  <section class="prep-panel" data-anchor="prep_panel">
+    ${img('075_painel_pergaminho_rustico.png','prep-panel-art')}
+    <div class="prep-content">
+      <h2>PREPARAÇÃO DA SESSÃO</h2>
+      <dl>
+        <dt>POSIÇÃO INICIAL</dt><dd>Entrada das Cavernas</dd>
+        <dt>PARTY</dt><dd>4 aventureiros • pronta</dd>
+        <dt>ESTADO</dt><dd>Narrativa ainda não iniciada</dd>
+      </dl>
+      <p class="prep-note"><b>PLAYER_ACTION</b> permanece indisponível.<br>Nenhum tempo, posição, NPC ou<br>consequência mecânica avançou.</p>
     </div>
   </section>
 
-  <section class="framed-panel company-panel">
-    <div class="section-heading"><div>${img('014_icone_grupo.png')}<h2>COMPANHIA</h2></div><span>4 AVENTUREIROS</span></div>
-    <div class="party-grid">
-      ${partyCard('040_token_guerreiro.png','Valgrim','Guerreiro','Nível 2')}
-      ${partyCard('042_token_arqueiro.png','Lyria','Clériga','Nível 2')}
-      ${partyCard('041_token_mago.png','Thamon','Mago','Nível 1')}
-      ${partyCard('043_token_ladrao.png','Sildor','Ladino','Nível 1')}
-    </div>
-  </section>
+  <aside class="prestart-rail" aria-label="Atalhos da sessão">
+    ${railItem('014_icone_grupo.png','PARTY','rail_party')}
+    ${railItem('013_icone_mapa.png','MAPA','rail_map')}
+    ${railItem('011_icone_d20.png','DADOS','rail_dice')}
+    ${railItem('015_icone_mochila.png','BOLSA','rail_bag')}
+  </aside>
 
-  <section class="framed-panel initial-panel">
-    <div class="section-heading simple"><h2>SITUAÇÃO INICIAL</h2></div>
-    <div class="initial-row">${img('032_icone_porta.png')}<div><b>POSIÇÃO INICIAL</b><span>Entrada das Cavernas</span></div><button aria-label="Editar posição"><i></i></button></div>
-    <div class="initial-row">${img('014_icone_grupo.png')}<div><b>PARTY</b><span>4 aventureiros • pronta</span></div><button aria-label="Editar companhia"><i></i></button></div>
-    <div class="initial-row">${img('012_icone_livros.png')}<div><b>ESTADO</b><span>Narrativa ainda não iniciada</span></div><button aria-label="Editar estado"><i></i></button></div>
-  </section>
+  <button class="start-cta" data-anchor="start_cta"><span>COMEÇAR A NARRAR</span></button>
 
-  <section class="framed-panel opening-panel">
-    <div class="section-heading simple quill"><h2>ABERTURA DA NARRATIVA</h2></div>
-    <p>Escreva o gancho inicial ou situação de abertura para os jogadores.</p>
-    <textarea id="openingNarrative" aria-label="Abertura da narrativa" placeholder="Ex.: À sua frente, a boca escura da caverna se abre na encosta, exalando um hálito frio e úmido..."></textarea>
-    <button class="master-cta">${img('012_icone_livros.png')}<span>MESTRE COMEÇAR A NARRAR</span></button>
-    <button class="tts-config">${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}<span><b>CONFIGURAR TTS</b><small>Áudio e assistente do mestre</small></span></button>
-  </section>
+  <div class="prestart-action" data-anchor="player_action">
+    ${img('071_painel_pergaminho_liso.png','prestart-action-art')}
+    <span>PLAYER_ACTION</span>
+  </div>
+  <small class="prestart-action-note">indisponível</small>
 
-  ${nav()}
+  <button class="prestart-help-icon" data-anchor="tts_control" aria-label="Ajuda do mestre">${img('OSE_SESSION_A501_icone_gm_help.png')}</button>
+  <button class="prestart-gm" data-anchor="gm_help">GM_HELP</button>
+  <small class="prestart-gm-note">não avança mundo</small>
+
+  <section class="prestart-tts-note"><span>TTS</span><b>indisponível até existir narração.</b></section>
+  ${bottomNav()}
 </main>`}
+}
 
-const status=(asset:string,label:string,value:string)=>`<div class="status-box">${img(asset)}<div><b>${label}</b><strong>${value}</strong></div></div>`;
+function active(keyboard=false){const f=fixtures['session-active'];return `<main class="screen ose-session active-strict ${keyboard?'kbd-open':''}">
+  ${header('CRIPTA SOB O OUTEIRO','SESSION_ACTIVE • narrativa em andamento')}
 
-const partyMarker=(asset:string,klass:string)=>`<span class="party-marker ${klass}">${img(asset)}</span>`;
-
-function active(keyboard=false){const f=fixtures['session-active'];return `<main class="screen active ${keyboard?'kbd-open':''}">
-  ${header('Cavernas do Caos  •  Sessão em andamento')}
-
-  <section class="status-strip">
-    ${status('007_icone_tocha.png','TOCHA','40 min')}
-    ${status('009_status_racoes_4.png','RAÇÕES','6/10')}
-    ${status('011_icone_d20.png','TURNO','17')}
-    ${status('010_status_movimento_90.png','MOVIMENTO','90′')}
+  <section class="active-status" aria-label="Estado da sessão">
+    <div data-anchor="status_light">${img('008_status_tocha_30m.png')}</div>
+    <div data-anchor="status_move">${img('010_status_movimento_90.png')}</div>
+    <div data-anchor="status_dice">${img('011_icone_d20.png')}</div>
+    <div data-anchor="status_party">${img('014_icone_grupo.png')}</div>
   </section>
 
-  <section class="parchment-panel narration-master" data-anchor="narration_panel">
-    ${img('075_painel_pergaminho_rustico.png','panel-art')}
-    <div class="narration-copy">
-      <h1>${img('006_icone_pergaminho.png')} NARRAÇÃO DO MESTRE</h1>
+  <section class="narration-panel" data-anchor="narration_panel">
+    ${img('OSE_SESSION_A502_frame_narracao_flexivel.png','narration-art')}
+    <div class="narration-text">
+      <strong>MESTRE</strong>
       <p>${f.narrative}</p>
     </div>
-    <div class="context-frame">
-      <div class="context-caption"><b>CRIPTA SOB O OUTEIRO</b><span>Setor C3 · corredor úmido</span></div>
-      <div class="dungeon-context" aria-label="Contexto procedural da cripta">
-        ${img('086_tile_sala_quadrada.png','dungeon-tile room-a')}
-        ${img('087_tile_corredor.png','dungeon-tile corridor-a')}
-        ${img('089_tile_cruzamento.png','dungeon-tile crossing')}
-        ${img('087_tile_corredor.png','dungeon-tile corridor-b')}
-        ${img('088_tile_sala_irregular.png','dungeon-tile room-b')}
-        ${img('032_icone_porta.png','context-door')}
-        ${partyMarker('040_token_guerreiro.png','p1')}
-        ${partyMarker('042_token_arqueiro.png','p2')}
-        ${partyMarker('041_token_mago.png','p3')}
-        ${partyMarker('043_token_ladrao.png','p4')}
-        <i class="fog fog-a"></i><i class="fog fog-b"></i>
-      </div>
+  </section>
+
+  <button class="active-tts" data-anchor="tts_control" aria-label="Ouvir TTS">${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}<span>OUVIR<br>TTS</span></button>
+
+  <section class="player-action-panel" data-anchor="player_action_panel">
+    ${img('072_painel_pergaminho_pautado.png','player-action-art')}
+    <div class="player-action-content">
+      <h2>AÇÃO / PLAYER_ACTION</h2>
+      <label for="playerAction">O que você faz?</label>
+      <textarea id="playerAction" aria-label="PLAYER_ACTION" placeholder="Texto do jogador...">${keyboard?'Examino a porta sem abri-la.':''}</textarea>
+    </div>
+  </section>
+  <button class="send-button" data-anchor="send_button">ENVIAR</button>
+
+  <button class="active-help-icon" aria-label="Ajuda do mestre">${img('OSE_SESSION_A501_icone_gm_help.png')}</button>
+  <button class="active-gm" data-anchor="gm_help">GM_HELP</button>
+  <small class="active-gm-note">não avança mundo</small>
+
+  <section class="shortcut-row">
+    ${quick('013_icone_mapa.png','MAPA','shortcut_map')}
+    ${quick('012_icone_livros.png','FICHA','shortcut_sheet')}
+    ${quick('011_icone_d20.png','DADOS','shortcut_dice')}
+    ${quick('015_icone_mochila.png','BOLSA','shortcut_bag')}
+  </section>
+
+  <section class="history-block">
+    <i class="history-divider"></i>
+    <h2 data-anchor="history_title">HISTÓRICO DA SESSÃO</h2>
+    <div class="history-scroll">
+      <p>A narração continua em rolagem vertical. Entradas anteriores permanecem acessíveis sem empurrar PLAYER_ACTION e GM_HELP para o mesmo canal. O concept demonstra conteúdo extenso sem transformar a tela em componente board.</p>
     </div>
   </section>
 
-  <section class="framed-panel action-master" data-anchor="player_action_panel">
-    <div class="section-heading simple quill"><h2>O QUE VOCÊ FAZ?</h2></div>
-    <div class="action-input">
-      <textarea id="playerAction" aria-label="PLAYER_ACTION" placeholder="Descreva sua ação ou decisão...">${keyboard?'Examino a porta sem abri-la.':''}</textarea>
-      <button class="voice" aria-label="Ditado por voz">${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}</button>
-    </div>
-    <div class="quick-actions">
-      <button>${img('007_icone_tocha.png')}<span><b>TOCHA</b><small>Gerenciar luz</small></span></button>
-      <button>${img('011_icone_d20.png')}<span><b>TESTE</b><small>Fazer teste</small></span></button>
-      <button>${img('013_icone_mapa.png')}<span><b>MAPA</b><small>Ver mapa</small></span></button>
-    </div>
-    <button class="narrate-tts">${img('OSE_SESSION_NEW_A701_icone_tts_ouvir.png')}<span><b>NARRAR (TTS)</b><small>Ouvir narração do mestre</small></span></button>
-  </section>
-
-  ${nav()}
+  ${bottomNav()}
 </main>${keyboard?keyboardMarkup():''}`}
 
 function keyboardMarkup(){return `<div class="keyboard-sim">${['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].map(r=>`<div>${[...r].map(k=>`<span>${k}</span>`).join('')}</div>`).join('')}<em>espaço</em></div>`}
 
+function conceptOverlay(id:FixtureId){
+  if(!overlayEnabled()) return '';
+  const concept=id==='session-prestart'?'CONCEPT_SESSION_PRESTART_415x915.png':'CONCEPT_SESSION_ACTIVE_415x915.png';
+  return `<img class="concept-overlay" src="${A}${concept}" alt="Concept overlay">`;
+}
+
 const id=fixture();
 document.documentElement.dataset.clock=FIXED_CLOCK;
-document.body.innerHTML=id==='session-prestart'?prestart():active(id==='keyboard-open');
+document.body.innerHTML=(id==='session-prestart'?prestart():active(id==='keyboard-open'))+conceptOverlay(id);
 document.body.dataset.ready='true';
 postBridge({version:BRIDGE_VERSION,type:'ViewState',payload:{fixture:id,fixtureRevision:FIXTURE_REVISION,clock:FIXED_CLOCK}});
