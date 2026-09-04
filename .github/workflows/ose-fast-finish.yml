@@ -5,6 +5,7 @@ on:
     branches: [ose-fast-finish]
     paths:
       - ".github/workflows/ose-fast-finish.yml"
+      - "ose/**"
 
 permissions:
   contents: read
