@@ -87,7 +87,7 @@ class FastFinishIntegrationTest {
 
     @Test fun `wave6 geometry v1 and coherence pass deterministic corpus`() {
         assertEquals(1,HexGeometryV1.VERSION); assertEquals(112,HexGeometryV1.COLUMN_STEP_X); assertEquals(96,HexGeometryV1.ROW_STEP_Y); assertEquals(56,HexGeometryV1.ODD_ROW_OFFSET_X)
-        val p0=HexGeometryV1.project(0,0); val p1=HexGeometryV1.project(0,1)
+        val p0=HexGeometryV1.projectAxial(0,0); val p1=HexGeometryV1.projectAxial(0,1)
         assertEquals(56,p1.x-p0.x);assertEquals(96,p1.y-p0.y)
         for(profile in RuleProfile.entries) repeat(128){i->
             val a=HexWorldGeneratorV1.generate("W",i.toULong(),profile); val b=HexWorldGeneratorV1.generate("W",i.toULong(),profile)
