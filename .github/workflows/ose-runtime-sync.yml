@@ -1,0 +1,37 @@
+name: BRASEIRO OSE Runtime Sync
+
+on:
+  push:
+    branches: [ose-fast-finish]
+    paths:
+      - ".github/workflows/ose-runtime-sync.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  sync-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Synchronize bridge-enabled P1 runtime without visual redesign
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f ose/web-ui/p1.runtime.js
+          test -f ose/web-ui-p1/p1.js
+          cp ose/web-ui/p1.runtime.js ose/web-ui-p1/p1.js
+          grep -F "postNative('PlayerReaction'" ose/web-ui-p1/p1.js >/dev/null
+          grep -F "postNative('GMHelp'" ose/web-ui-p1/p1.js >/dev/null
+          grep -F "postNative('TtsCommand'" ose/web-ui-p1/p1.js >/dev/null
+          git config user.name "BRASEIRO OSE Executor"
+          git config user.email "actions@users.noreply.github.com"
+          git add ose/web-ui-p1/p1.js
+          if ! git diff --cached --quiet; then
+            git commit -m "OSE fast finish: connect approved P1 shell to native bridge"
+            git push origin HEAD:ose-fast-finish
+          fi
+          echo "RUNTIME_SHA=$(git rev-parse HEAD)"
