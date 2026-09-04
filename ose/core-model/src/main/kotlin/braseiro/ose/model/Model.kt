@@ -32,9 +32,10 @@ import kotlinx.serialization.Serializable
     val time: TimeState,
     val position: PositionState,
     val resources: ResourceState = ResourceState(),
-    val playerKnowledge: PlayerKnowledgeState = PlayerKnowledgeState()
+    val playerKnowledge: PlayerKnowledgeState = PlayerKnowledgeState(),
+    val game: GameExtensions = GameExtensions()
 ) {
-    fun canonical() = copy(party = party.canonical(), resources = resources.canonical(), playerKnowledge = playerKnowledge.canonical())
+    fun canonical() = copy(party = party.canonical(), resources = resources.canonical(), playerKnowledge = playerKnowledge.canonical(), game = game.canonical())
 }
 
 @Serializable data class CampaignEnvelope(

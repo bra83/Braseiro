@@ -76,6 +76,25 @@ class RoomCampaignRepositoryTest {
         assertEquals(1, repository.listCampaigns().size)
     }
 
+    @Test fun `file backed close reopen preserves last committed campaign`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbName = "braseiro-recovery-test.db"
+        if (db.isOpen) db.close()
+        context.deleteDatabase(dbName)
+        var fileDb = Room.databaseBuilder(context, BraseiroOseDatabase::class.java, dbName).allowMainThreadQueries().build()
+        var repo = RoomCampaignRepository(fileDb)
+        val source = fixture("recover")
+        repo.create(source)
+        repo.commit(source.campaignId, StateTransition("commit-before-close", source.campaignState.copy(time = TimeState(turns = 5))))
+        fileDb.close()
+        fileDb = Room.databaseBuilder(context, BraseiroOseDatabase::class.java, dbName).allowMainThreadQueries().build()
+        repo = RoomCampaignRepository(fileDb)
+        val loaded = repo.load(source.campaignId) as CampaignLoadResult.Loaded
+        assertEquals(5, loaded.envelope.campaignState.time.turns)
+        fileDb.close()
+        context.deleteDatabase(dbName)
+    }
+
     @Test fun `missing remains not found`() {
         assertIs<CampaignLoadResult.NotFound>(repository.load(CampaignId("missing")))
         assertTrue(repository.listCampaigns().isEmpty())

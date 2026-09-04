@@ -11,17 +11,27 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.2.0-batch-a"
+        versionName = "1.0.0-rc"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-    sourceSets["main"].assets.srcDir("../web-ui/dist")
+    sourceSets["main"].assets.srcDirs("../web-ui-p1", "../assets")
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 kotlin { jvmToolchain(17) }
 
 dependencies {
+    implementation(project(":core-model"))
+    implementation(project(":core-rng"))
+    implementation(project(":persistence-api"))
+    implementation(project(":persistence-room"))
+    implementation(project(":referee-boundary"))
+    implementation(project(":session-engine"))
+    implementation(project(":barbara-adapter"))
+    implementation(project(":tts-api"))
+    implementation(project(":tts-android"))
     implementation("androidx.webkit:webkit:1.12.1")
+    implementation("androidx.room:room-runtime:2.6.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

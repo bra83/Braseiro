@@ -3,7 +3,10 @@ package braseiro.ose.app
 import org.json.JSONObject
 
 const val BRIDGE_VERSION = 1
-private val ALLOWED_BRIDGE_TYPES = setOf("ViewState", "UiCommand", "CaptureFixtureCommand")
+private val ALLOWED_BRIDGE_TYPES = setOf(
+    "ViewState", "UiCommand", "CaptureFixtureCommand",
+    "PLAYER_REACTION", "GM_HELP", "TTS_PLAY", "TTS_STOP"
+)
 
 data class BridgeEnvelopeMetadata(val version: Int, val type: String)
 

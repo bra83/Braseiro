@@ -31,6 +31,7 @@ object Pcg32 {
 
 class NamedRngStreams private constructor(private var seedState: SeedState) {
     companion object {
+        fun fromSeedState(seedState: SeedState): NamedRngStreams = NamedRngStreams(seedState)
         fun fromRootSeed(rootSeed: ULong): NamedRngStreams {
             val streams = RngStreamId.entries.associateWith { id ->
                 val sequence = splitMix64(rootSeed + id.ordinal.toULong() + 1u)
