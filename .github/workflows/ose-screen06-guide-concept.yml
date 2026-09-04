@@ -50,16 +50,20 @@ jobs:
           bad="$(git diff --name-only | grep -Ev '^ose/docs/screen-06/(SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915\.png|SCREEN_06_SESSION_ACTIVE_BUILD_REPORT\.json)$' || true)"
           test -z "$bad" || { echo "UNAUTHORIZED_WORKTREE_CHANGE=$bad"; exit 1; }
           echo 'CSS_LAYOUT_CHANGED=NO'
-      - name: Commit canonical concept and build evidence
+      - name: Commit canonical concept and build evidence if changed
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'braseiro-build-bot'
           git config user.email 'actions@users.noreply.github.com'
           git add ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915.png ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_BUILD_REPORT.json
-          git commit -m 'OSE Screen 06: materialize canonical 415x915 guide concept'
-          git push origin HEAD:ose-session-visual-lock-strict-2
-          echo "SCREEN06_FINAL_COMMIT=$(git rev-parse HEAD)"
+          if git diff --cached --quiet; then
+            echo 'SCREEN06_MATERIALIZATION=UNCHANGED_VALID'
+          else
+            git commit -m 'OSE Screen 06: materialize canonical 415x915 guide concept'
+            git push origin HEAD:ose-session-visual-lock-strict-2
+            echo "SCREEN06_FINAL_COMMIT=$(git rev-parse HEAD)"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: BRASEIRO_OSE_SCREEN_06_GUIDE_REAUDIT
