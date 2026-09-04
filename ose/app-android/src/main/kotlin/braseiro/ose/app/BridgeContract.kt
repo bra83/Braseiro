@@ -4,8 +4,18 @@ import org.json.JSONObject
 
 const val BRIDGE_VERSION = 1
 private val ALLOWED_BRIDGE_TYPES = setOf(
-    "ViewState", "UiCommand", "CaptureFixtureCommand",
-    "PLAYER_REACTION", "GM_HELP", "TTS_PLAY", "TTS_STOP"
+    "ViewState",
+    "UiCommand",
+    "CaptureFixtureCommand",
+    "PlayerReaction",
+    "GMHelp",
+    "TtsCommand",
+    // Legacy spellings remain accepted only for backward-compatible transport parsing.
+    // They do not create alternate mutation channels.
+    "PLAYER_REACTION",
+    "GM_HELP",
+    "TTS_PLAY",
+    "TTS_STOP"
 )
 
 data class BridgeEnvelopeMetadata(val version: Int, val type: String)
