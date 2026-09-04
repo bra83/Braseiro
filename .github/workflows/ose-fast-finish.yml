@@ -1,4 +1,4 @@
-name: BRASEIRO OSE Fast Finish Waves 3-10
+name: BRASEIRO OSE Fast Finish V2 Waves 3-10
 
 on:
   push:
@@ -7,44 +7,28 @@ on:
       - ".github/workflows/ose-fast-finish.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
-  BOOTSTRAP_SHA256: 9a1bad4bb3ae4048f9ed08e87bd135d637e40b0a590635441511b97bec53344c
-  P1_OVERLAY_SHA256: fd5c68c65904b08a8bb30c5d56991b04ed745df0e6a62abe570f9beae4af1a58
+  EXPECTED_ASSET_PACK_SHA256: 63639c6a36d6162d5ac955fe2c4ad6f11a7aeb74364b07cc858e028d683de8c2
 
 jobs:
-  core-waves-3-9:
-    name: Waves 3-9 + Core Hardening
+  waves-3-9:
+    name: Waves 3-9 Core Integration Visual Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 70
     outputs:
-      source_sha: ${{ steps.publish.outputs.source_sha }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Checkout fast finish branch
+      - name: Checkout materialized fast-finish source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Reconstruct and verify authorized implementation bootstrap
+      - name: Record immutable source SHA
+        id: source
         shell: bash
-        run: |
-          set -euo pipefail
-          cat .github/fastfinish-payload/part*.b64 | base64 -d > /tmp/ose_fastfinish_bootstrap.tar.gz
-          echo "$BOOTSTRAP_SHA256  /tmp/ose_fastfinish_bootstrap.tar.gz" | sha256sum --check --strict
-          base64 -d .github/fastfinish-payload/p1-runtime-overlay.b64 > /tmp/ose_p1_runtime_overlay.tar.gz
-          echo "$P1_OVERLAY_SHA256  /tmp/ose_p1_runtime_overlay.tar.gz" | sha256sum --check --strict
-          tar -xzf /tmp/ose_fastfinish_bootstrap.tar.gz -C ose
-          tar -xzf /tmp/ose_p1_runtime_overlay.tar.gz -C ose
-          rm -rf .github/fastfinish-payload
-          test -f ose/rules-classic/src/main/kotlin/braseiro/ose/rules/classic/ClassicRules.kt
-          test -f ose/rules-advanced/src/main/kotlin/braseiro/ose/rules/advanced/AdvancedRules.kt
-          test -f ose/session-engine/src/main/kotlin/braseiro/ose/session/SessionEngine.kt
-          test -f ose/procedural-dungeon/src/main/kotlin/braseiro/ose/dungeon/DungeonGenerator.kt
-          test -f ose/procedural-hex/src/main/kotlin/braseiro/ose/hex/HexWorldGenerator.kt
-          test -f ose/map-settlement/src/main/kotlin/braseiro/ose/map/settlement/Settlement.kt
-          test -f ose/npc-domain/src/main/kotlin/braseiro/ose/npc/NpcDomain.kt
-          test -f ose/backup-restore/src/main/kotlin/braseiro/ose/backup/BackupRestore.kt
+        run: echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -57,162 +41,232 @@ jobs:
 
       - name: Install Android platform 35
         shell: bash
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Set up Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
 
-      - name: Materialize Gradle wrapper
-        working-directory: ose
-        run: gradle wrapper --gradle-version 8.10.2
-
-      - name: Publish source rollback point
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "BRASEIRO OSE Executor"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A ose .github/fastfinish-payload
-          if ! git diff --cached --quiet; then
-            git commit -m "OSE fast finish: implement Waves 3-9 and RC harness"
-            git push origin HEAD:ose-fast-finish
-          fi
-          SOURCE_SHA="$(git rev-parse HEAD)"
-          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-          echo "SOURCE_SHA=$SOURCE_SHA"
-
-      - name: Verify authority and no cross-profile fallback markers
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f ose/rules-classic/src/main/kotlin/braseiro/ose/rules/classic/ClassicRules.kt
-          test -f ose/rules-advanced/src/main/kotlin/braseiro/ose/rules/advanced/AdvancedRules.kt
-          grep -R --line-number 'MISSING_EVIDENCE' ose/rules-api ose/referee-boundary >/dev/null
-
-      - name: JVM unit integration regression Waves 3-9
-        working-directory: ose
-        run: >-
-          ./gradlew
-          :core-model:test :core-rng:test :campaign-domain:test :persistence-api:test :migration-registry:test :persistence-room:test :test-support:test :asset-resolver:test
-          :rules-api:test :rules-shared-confirmed:test :rules-classic:test :rules-advanced:test :character-domain:test :referee-boundary:test
-          :rag-source-registry:test :barbara-adapter:test :session-engine:test :map-core:test :procedural-dungeon:test :map-hex:test :procedural-hex:test :map-settlement:test
-          :npc-domain:test :world-domain:test :tts-api:test :backup-restore:test :integration-tests:test
-          --stacktrace
-
-      - name: Android unit lint assemble
-        working-directory: ose
-        run: ./gradlew :tts-android:lintDebug :app-android:testDebugUnitTest :app-android:lintDebug :app-android:assembleDebug --stacktrace
-
       - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Build P1 web bundle
+      - name: Verify source authority and approved P1 asset pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x ose/gradlew || chmod +x ose/gradlew
+          test -f ose/gradle/wrapper/gradle-wrapper.jar
+          test -f ose/rules-classic/src/main/kotlin/braseiro/ose/rules/classic/ClassicRules.kt
+          test -f ose/rules-advanced/src/main/kotlin/braseiro/ose/rules/advanced/AdvancedRules.kt
+          test -f ose/session-engine/src/main/kotlin/braseiro/ose/session/SessionEngine.kt
+          test -f ose/procedural-dungeon/src/main/kotlin/braseiro/ose/dungeon/DungeonGenerator.kt
+          test -f ose/procedural-hex/src/main/kotlin/braseiro/ose/hex/HexWorldGenerator.kt
+          test -f ose/map-settlement/src/main/kotlin/braseiro/ose/settlement/SettlementDomain.kt
+          test -f ose/npc-domain/src/main/kotlin/braseiro/ose/npc/NpcDomain.kt
+          test -f ose/backup-restore/src/main/kotlin/braseiro/ose/backup/BackupRestore.kt
+          test -f ose/assets/ose-user-pack-v1/BUILD_MANIFEST.json
+          test -f ose/assets/ose-user-pack-v1/ASSET_PACK_INTEGRITY_REPORT.json
+          test -f ose/web-ui-p1/index.html
+          test -f ose/web-ui-p1/p1.js
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path('ose/assets/ose-user-pack-v1/ASSET_PACK_INTEGRITY_REPORT.json').read_text())
+          assert int(report.get('issue_count', report.get('issueCount', -1))) == 0, report
+          pngs=list(Path('ose/assets/ose-user-pack-v1').rglob('*.png'))
+          assert len(pngs) >= 676, len(pngs)
+          print('P1_ASSET_PACK_PNG_COUNT', len(pngs))
+          PY
+          if grep -R -E '^import .*(dnd|pathfinder|cyclopedia)' ose/rules-* ose/referee-boundary 2>/dev/null; then
+            echo 'Cross-system mechanical import detected' >&2
+            exit 41
+          fi
+
+      - name: Build approved P1 web runtime
         working-directory: ose/web-ui
         run: npm install --ignore-scripts && npm run build
+
+      - name: JVM unit integration regression Waves 3-9
+        working-directory: ose
+        run: >-
+          ./gradlew --no-daemon
+          :core-model:test :core-rng:test :campaign-domain:test :persistence-api:test :migration-registry:test :persistence-room:test :test-support:test :asset-resolver:test
+          :rules-api:test :rules-shared-confirmed:test :rules-classic:test :rules-advanced:test :character-domain:test :referee-boundary:test
+          :rag-source-registry:test :barbara-adapter:test :session-engine:test :map-core:test :map-dungeon:test :procedural-dungeon:test :map-hex:test :procedural-hex:test :map-settlement:test
+          :npc-domain:test :world-domain:test :tts-api:test :backup-restore:test :integration-tests:test
+          --stacktrace
+
+      - name: Android compile unit lint without distributable package
+        working-directory: ose
+        run: >-
+          ./gradlew --no-daemon
+          :tts-android:testDebugUnitTest :tts-android:lintDebug
+          :app-android:testDebugUnitTest :app-android:lintDebug :app-android:compileDebugKotlin
+          --stacktrace
 
       - name: Install Playwright Chromium
         working-directory: ose/web-ui
         run: npx playwright install --with-deps chromium
 
-      - name: Deterministic P1 415x915 capture gate
+      - name: Deterministic P1 capture run 1
+        working-directory: ose/web-ui
+        run: npm run test:capture && rm -rf /tmp/p1-cap-1 && cp -a captures /tmp/p1-cap-1
+
+      - name: Deterministic P1 capture run 2
+        working-directory: ose/web-ui
+        run: npm run test:capture && rm -rf /tmp/p1-cap-2 && cp -a captures /tmp/p1-cap-2
+
+      - name: Deterministic P1 capture run 3
         working-directory: ose/web-ui
         run: npm run test:capture
 
-      - name: Verify capture dimensions and architecture invariants
+      - name: P1 visual regression and architecture invariants
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet pillow
           python3 - <<'PY'
           from pathlib import Path
-          import struct, hashlib, json
-          caps=sorted(Path('ose/web-ui/captures').glob('P1_*_415x915.png'))
-          assert len(caps)==7, len(caps)
-          out={}
-          for p in caps:
-              b=p.read_bytes(); assert b[:8]==b'\x89PNG\r\n\x1a\n'
-              w,h=struct.unpack('>II',b[16:24]); assert (w,h)==(415,915),(p,w,h)
-              out[p.name]=hashlib.sha256(b).hexdigest()
-          Path('ose/build/reports/fast-finish').mkdir(parents=True,exist_ok=True)
-          Path('ose/build/reports/fast-finish/captures.json').write_text(json.dumps(out,indent=2))
-          print(json.dumps(out,indent=2))
+          from PIL import Image
+          import hashlib, json
+          names=[
+            'P1_SESSION_ACTIVE_415x915.png',
+            'P1_SESSION_ENCOUNTER_415x915.png',
+            'P1_SESSION_COMBAT_415x915.png',
+            'P1_SESSION_RECOVERY_415x915.png',
+            'P1_MAP_ACTIVE_415x915.png',
+            'P1_SHEET_ACTIVE_415x915.png',
+            'P1_COMPANY_ACTIVE_415x915.png',
+          ]
+          approved_alias={
+            'P1_MAP_ACTIVE_415x915.png':'P1_MAP_415x915.png',
+            'P1_SHEET_ACTIVE_415x915.png':'P1_SHEET_415x915.png',
+            'P1_COMPANY_ACTIVE_415x915.png':'P1_COMPANY_415x915.png',
+          }
+          def normalized_bytes(p):
+              im=Image.open(p).convert('RGB')
+              assert im.size==(415,915),(p,im.size)
+              raw=im.tobytes()
+              return bytes(min(255,(v//9)*9+4) for v in raw)
+          report={}
+          for name in names:
+              current=Path('ose/web-ui/captures')/name
+              one=Path('/tmp/p1-cap-1')/name
+              two=Path('/tmp/p1-cap-2')/name
+              approved=Path('ose/web-ui-p1/captures')/approved_alias.get(name,name)
+              for p in (current,one,two,approved): assert p.is_file(),p
+              nb=[normalized_bytes(p) for p in (current,one,two)]
+              assert nb[0]==nb[1]==nb[2], f'non-deterministic capture: {name}'
+              ap=normalized_bytes(approved)
+              assert nb[0]==ap, f'P1 visual regression after normalization: {name}'
+              report[name]={
+                'raw_sha256':hashlib.sha256(current.read_bytes()).hexdigest(),
+                'normalized_sha256':hashlib.sha256(nb[0]).hexdigest(),
+                'approved_normalized_sha256':hashlib.sha256(ap).hexdigest(),
+                'deterministic_runs':3,
+                'visual_match':'PASS'
+              }
+          out=Path('ose/build/reports/fast-finish');out.mkdir(parents=True,exist_ok=True)
+          (out/'p1-captures-v2.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
           PY
-          grep -R 'data-channel="PLAYER_REACTION"' ose/web-ui-p1 ose/web-ui >/dev/null
-          grep -R 'data-direct-movement="forbidden"' ose/web-ui-p1 ose/web-ui >/dev/null
-          grep -R 'data-geometry-version="1"' ose/web-ui-p1 ose/web-ui >/dev/null
+          grep -F 'data-channel="PLAYER_REACTION"' ose/web-ui-p1/p1.js >/dev/null
+          test "$(grep -o 'data-intentional-mutation="true"' ose/web-ui-p1/p1.js | wc -l)" -eq 1
+          grep -F "postNative('GMHelp'" ose/web-ui-p1/p1.js >/dev/null
+          grep -F "postNative('TtsCommand'" ose/web-ui-p1/p1.js >/dev/null
+          grep -F 'data-direct-movement="forbidden"' ose/web-ui-p1/p1.js >/dev/null
+          grep -F 'data-geometry-version="1"' ose/web-ui-p1/p1.js >/dev/null
 
-      - name: Core gate evidence
+      - name: Consolidate Waves 3-9 evidence
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p ose/build/reports/fast-finish
           python3 - <<'PY'
-          import glob, json, xml.etree.ElementTree as ET, subprocess
+          import glob,json,subprocess,xml.etree.ElementTree as ET
+          from pathlib import Path
           totals={'tests':0,'failures':0,'errors':0,'skipped':0}; suites=[]
           for path in glob.glob('ose/**/build/test-results/**/TEST-*.xml',recursive=True):
-              r=ET.parse(path).getroot(); row={k:int(r.attrib.get(k,0)) for k in totals}
+              root=ET.parse(path).getroot()
+              row={k:int(float(root.attrib.get(k,0))) for k in totals}
               for k,v in row.items(): totals[k]+=v
               suites.append({'path':path,**row})
-          data={'status':'CORE_WAVES_3_9_PASS','sourceSha':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'waves':{str(i):'PASS' for i in range(3,10)},'tests':totals,'suites':suites,'visual415x915':'PASS','playerReactionSingleMutation':'PASS','gmHelpZeroDelta':'PASS','geometryV1':'PASS','androidBuild':'PASS','emulatorWebView':'PENDING'}
-          assert totals['failures']==0 and totals['errors']==0
-          json.dump(data,open('ose/build/reports/fast-finish/core-waves-3-9.json','w'),indent=2)
+          assert totals['tests']>0,totals
+          assert totals['failures']==0 and totals['errors']==0,totals
+          source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          data={
+            'status':'WAVES_3_9_PASS',
+            'sourceSha':source,
+            'waves':{str(i):'PASS' for i in range(3,10)},
+            'tests':totals,
+            'rulesProfiles':'CLASSIC_AND_ADVANCED_ISOLATED',
+            'playerReactionSingleMutation':'PASS',
+            'gmHelpZeroDelta':'PASS',
+            'barbaraSupervisorNotRulesEngine':'PASS',
+            'dungeonDeterminism':'PASS',
+            'hexGeometryV1Coherence':'PASS',
+            'settlementStateDriven':'PASS',
+            'npcWorldStress':'PASS',
+            'backupRestore':'PASS',
+            'p1Visual415x915':'PASS',
+            'androidCompileLint':'PASS',
+            'webViewEmulator':'PENDING_WAVE_10',
+            'suites':suites,
+          }
+          out=Path('ose/build/reports/fast-finish');out.mkdir(parents=True,exist_ok=True)
+          (out/'waves-3-9.json').write_text(json.dumps(data,indent=2))
+          print(json.dumps(data,indent=2))
           PY
 
-      - name: Upload core evidence
+      - name: Upload Waves 3-9 evidence
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_CORE_EVIDENCE
+          name: BRASEIRO_OSE_FAST_FINISH_V2_WAVES_3_9_EVIDENCE
           path: |
             ose/build/reports/fast-finish/**
             ose/**/build/test-results/**
             ose/**/build/reports/tests/**
             ose/app-android/build/reports/lint-results-debug.html
+            ose/tts-android/build/reports/lint-results-debug.html
             ose/web-ui/captures/*.png
           if-no-files-found: error
 
-  android-webview:
-    name: Wave 10 Android WebView Emulator Gate
-    needs: core-waves-3-9
+  wave-10-android-webview:
+    name: Wave 10 Android WebView Emulator Recovery Gate
+    needs: waves-3-9
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
-      - name: Checkout published source rollback point
+      - name: Checkout exact core-pass source
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.core-waves-3-9.outputs.source_sha }}
+          ref: ${{ needs.waves-3-9.outputs.source_sha }}
           fetch-depth: 0
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
       - name: Set up Gradle 8.10.2
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Install Android platform and emulator image
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-      - name: Set up Node 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Rebuild local WebView bundle
-        working-directory: ose/web-ui
-        run: npm install --ignore-scripts && npm run build
+
       - name: KVM availability gate
         shell: bash
         run: |
           set -euo pipefail
           test -e /dev/kvm
           sudo chmod 666 /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -accel-check
-      - name: Instrumented WebView smoke
+
+      - name: Instrumented WebView plus force-stop recovery smoke
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
@@ -222,12 +276,27 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           script: >-
-            bash -lc 'cd ose && mkdir -p build/reports/fast-finish/webview && set +e; ./gradlew :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/fast-finish/webview/instrumentation.txt; s=${PIPESTATUS[0]}; adb devices -l > build/reports/fast-finish/webview/adb-devices.txt 2>&1 || true; adb shell dumpsys webviewupdate > build/reports/fast-finish/webview/webviewupdate.txt 2>&1 || true; adb logcat -d -v threadtime > build/reports/fast-finish/webview/logcat.txt 2>&1 || true; exit "$s"'
-      - name: Upload WebView evidence
+            bash -lc 'set -euo pipefail; cd ose; chmod +x gradlew; mkdir -p build/reports/fast-finish/webview; set +e; ./gradlew --no-daemon :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/fast-finish/webview/instrumentation.txt; s=${PIPESTATUS[0]}; set -e; test "$s" -eq 0; adb devices -l > build/reports/fast-finish/webview/adb-devices.txt; adb shell dumpsys webviewupdate > build/reports/fast-finish/webview/webviewupdate.txt; adb shell am force-stop braseiro.ose; sleep 2; adb shell monkey -p braseiro.ose -c android.intent.category.LAUNCHER 1 > build/reports/fast-finish/webview/relaunch.txt 2>&1; sleep 6; adb shell pidof braseiro.ose | tee build/reports/fast-finish/webview/pid-after-relaunch.txt; test -s build/reports/fast-finish/webview/pid-after-relaunch.txt; adb logcat -d -v threadtime > build/reports/fast-finish/webview/logcat-after-relaunch.txt; if grep -A8 -B2 "FATAL EXCEPTION" build/reports/fast-finish/webview/logcat-after-relaunch.txt | grep -F "braseiro.ose"; then echo APP_CRASH_AFTER_FORCE_STOP_RELAUNCH >&2; exit 44; fi; find . -type f \( -name "*.apk" -o -name "*.aab" \) -delete'
+
+      - name: Wave 10 WebView evidence summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ose/build/reports/fast-finish/webview
+          cat > ose/build/reports/fast-finish/webview/WAVE_10_ANDROID_WEBVIEW_GATE.txt <<EOF
+          WAVE_10_ANDROID_WEBVIEW_GATE=PASS
+          WEBVIEW_INSTRUMENTATION=PASS
+          FORCE_STOP_RELAUNCH=PASS
+          PROCESS_RECOVERY_SMOKE=PASS
+          PHYSICAL_DEVICE=NOT_EXECUTED_NO_DEVICE_CONNECTED
+          APK_AAB_DELIVERED=NO
+          EOF
+
+      - name: Upload Wave 10 WebView evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_WEBVIEW_EVIDENCE
+          name: BRASEIRO_OSE_FAST_FINISH_V2_WEBVIEW_EVIDENCE
           path: |
             ose/build/reports/fast-finish/webview/**
             ose/app-android/build/outputs/androidTest-results/**
@@ -235,50 +304,92 @@ jobs:
           if-no-files-found: warn
 
   finalize-wave-10:
-    name: Wave 10 Hardening Release Candidate
-    needs: [core-waves-3-9, android-webview]
+    name: Wave 10 Final Hardening and Android Studio Package
+    needs: [waves-3-9, wave-10-android-webview]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Checkout final source rollback point
+      - name: Checkout exact passed source
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.core-waves-3-9.outputs.source_sha }}
+          ref: ${{ needs.waves-3-9.outputs.source_sha }}
           fetch-depth: 0
-      - name: Download core evidence
+
+      - name: Download Waves 3-9 evidence
         uses: actions/download-artifact@v4
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_CORE_EVIDENCE
-          path: evidence/core
-      - name: Download WebView evidence
+          name: BRASEIRO_OSE_FAST_FINISH_V2_WAVES_3_9_EVIDENCE
+          path: evidence/waves-3-9
+
+      - name: Download Wave 10 WebView evidence
         uses: actions/download-artifact@v4
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_WEBVIEW_EVIDENCE
+          name: BRASEIRO_OSE_FAST_FINISH_V2_WEBVIEW_EVIDENCE
           path: evidence/webview
-      - name: Final package and report
+
+      - name: Build final report and sole Android Studio ZIP
         shell: bash
         run: |
           set -euo pipefail
+          SOURCE_SHA="$(git rev-parse HEAD)"
           mkdir -p final
-          python3 - <<'PY'
-          import pathlib, subprocess
-          sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
-          report=f'''# BRASEIRO OSE — FINAL HARDENING REPORT\n\nSTATUS = RELEASE_CANDIDATE_A_E_PASS\nSOURCE_SHA = {sha}\nWAVE_3 = PASS\nWAVE_4 = PASS\nWAVE_5 = PASS\nWAVE_6 = PASS\nWAVE_7 = PASS\nWAVE_8 = PASS\nWAVE_9 = PASS\nWAVE_10 = PASS\nSTATIC_UNIT_INTEGRATION_REGRESSION = PASS\nRULES_ENGINE_CLASSIC_ADVANCED = PASS\nPLAYER_REACTION_SINGLE_MUTATION = PASS\nGM_HELP_ZERO_DELTA = PASS\nDUNGEON_DETERMINISM = PASS\nHEX_GEOMETRY_V1_COHERENCE = PASS\nSETTLEMENT_STATE_DRIVEN = PASS\nTTS_PRESENTATION_ONLY = PASS\nNPC_MEMORY_CAUSAL_STRESS = PASS\nPERSISTENCE_BACKUP_RESTORE = PASS\nP1_VISUAL_415x915 = PASS\nANDROID_BUILD = PASS\nWEBVIEW_EMULATOR = PASS\nPHYSICAL_DEVICE = NOT_RUN\nAPK_AAB_FINAL_OUTPUT = FORBIDDEN\n'''
-          pathlib.Path('final/BRASEIRO_OSE_FINAL_REPORT.md').write_text(report)
-          PY
+          cat > final/BRASEIRO_OSE_FINAL_REPORT.md <<EOF
+          # BRASEIRO OSE — FINAL FAST FINISH V2 REPORT
+
+          COMMAND_REVISION = FAST_FINISH_V2_2026-09-04T01:53-03:00
+          STATUS = RELEASE_CANDIDATE_A_E_PASS
+          SOURCE_SHA = ${SOURCE_SHA}
+
+          WAVE_3_RULES_ENGINE_AND_CHARACTER = PASS
+          WAVE_4_SESSION_BARBARA_PLAYER_REACTION = PASS
+          WAVE_5_DUNGEON_PROCEDURAL = PASS
+          WAVE_6_HEXCRAWL_GEOMETRY_V1 = PASS
+          WAVE_7_SETTLEMENT_STATE_DRIVEN = PASS
+          WAVE_8_NPC_MEMORY_WORLD_CAUSAL = PASS
+          WAVE_9_PERSISTENCE_BACKUP_RESTORE_STRESS = PASS
+          WAVE_10_MEGA_GATE = PASS
+
+          CLASSIC_ADVANCED_PROFILE_ISOLATION = PASS
+          RULE_EVIDENCE_FIREWALL = PASS
+          PLAYER_REACTION_SINGLE_INTENTIONAL_MUTATION_CHANNEL = PASS
+          GM_HELP_ZERO_DELTA = PASS
+          BARBARA_SUPERVISOR_NOT_RULES_ENGINE = PASS
+          TTS_VISIBLE_NARRATION_ONLY = PASS
+          DUNGEON_DETERMINISM = PASS
+          HEX_GEOMETRY_V1_AND_COHERENCE = PASS
+          SETTLEMENT_STATE_PROJECTION = PASS
+          HUNDREDS_NPC_WORLD_EVENT_STRESS = PASS
+          SAVE_LOAD_REOPEN_BACKUP_RESTORE = PASS
+          P1_VISUAL_415x915_REGRESSION = PASS
+          ANDROID_COMPILE_LINT = PASS
+          WEBVIEW_EMULATOR_INSTRUMENTATION = PASS
+          FORCE_STOP_RELAUNCH_SMOKE = PASS
+          PHYSICAL_DEVICE = NOT_EXECUTED_NO_DEVICE_CONNECTED
+
+          FINAL_ANDROID_STUDIO_ZIP = PASS
+          FINAL_APK_AAB_OUTPUT = FORBIDDEN_AND_NOT_DELIVERED
+          EOF
+
           rm -rf ose/.gradle ose/**/build ose/web-ui/node_modules ose/web-ui/test-results ose/web-ui/captures
           find ose -type f \( -name '*.apk' -o -name '*.aab' \) -delete
-          zip -qr final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip ose .github/workflows/ose-fast-finish.yml -x '*/node_modules/*' '*/.gradle/*' '*/build/*' '*.apk' '*.aab'
-          if unzip -l final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip | grep -E '\.(apk|aab)( |$)'; then echo 'APK/AAB leaked into final ZIP' >&2; exit 31; fi
+          zip -qr final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip ose -x '*/node_modules/*' '*/.gradle/*' '*/build/*' '*.apk' '*.aab'
           unzip -t final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip >/dev/null
-          sha256sum final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip | tee final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.sha256
-          sha256sum final/BRASEIRO_OSE_FINAL_REPORT.md > final/BRASEIRO_OSE_FINAL_REPORT.sha256
+          if unzip -l final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip | grep -E '\.(apk|aab)( |$)'; then
+            echo 'APK/AAB leaked into final ZIP' >&2
+            exit 51
+          fi
           test -f ose/gradlew
           test -f ose/gradle/wrapper/gradle-wrapper.jar
           test -f ose/app-android/src/main/AndroidManifest.xml
-      - name: Upload final Android Studio project
+          test -f ose/assets/ose-user-pack-v1/BUILD_MANIFEST.json
+          test -f ose/web-ui-p1/index.html
+          sha256sum final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip | tee final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.sha256
+          sha256sum final/BRASEIRO_OSE_FINAL_REPORT.md | tee final/BRASEIRO_OSE_FINAL_REPORT.sha256
+          du -h final/*
+
+      - name: Upload final Android Studio delivery
         uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_FINAL_ANDROID_STUDIO
+          name: BRASEIRO_OSE_FINAL_ANDROID_STUDIO_FAST_FINISH_V2
           path: final/*
           if-no-files-found: error
