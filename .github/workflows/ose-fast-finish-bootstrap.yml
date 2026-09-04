@@ -25,11 +25,9 @@ jobs:
           echo "9a1bad4bb3ae4048f9ed08e87bd135d637e40b0a590635441511b97bec53344c  /tmp/bootstrap.tar.gz" | sha256sum --check --strict
           base64 -d .github/fastfinish-payload/p1-runtime-overlay.b64 > /tmp/p1.tar.gz
           echo "fd5c68c65904b08a8bb30c5d56991b04ed745df0e6a62abe570f9beae4af1a58  /tmp/p1.tar.gz" | sha256sum --check --strict
-          base64 -d .github/fastfinish-payload/mainactivity-hotfix.b64 > /tmp/mainfix.tar.gz
-          echo "d4deebd1d4dea06ed25a76be8c9aa255dea663011c8208b527d630914648f80a  /tmp/mainfix.tar.gz" | sha256sum --check --strict
           tar -xzf /tmp/bootstrap.tar.gz -C ose
           tar -xzf /tmp/p1.tar.gz -C ose
-          tar -xzf /tmp/mainfix.tar.gz -C ose
+          cp .github/fastfinish-payload/MainActivity.kt ose/app-android/src/main/kotlin/braseiro/ose/app/MainActivity.kt
           test -f ose/rules-classic/src/main/kotlin/braseiro/ose/rules/classic/ClassicRules.kt
           test -f ose/rules-advanced/src/main/kotlin/braseiro/ose/rules/advanced/AdvancedRules.kt
           test -f ose/session-engine/src/main/kotlin/braseiro/ose/session/SessionEngine.kt
@@ -55,7 +53,7 @@ jobs:
           rm -rf .github/fastfinish-payload
           git config user.name "BRASEIRO OSE Executor"
           git config user.email "actions@users.noreply.github.com"
-          git add -A ose .github/fastfinish-payload
+          git add -A
           git commit -m "OSE fast finish: materialize Waves 3-9 source baseline"
           git push origin HEAD:ose-fast-finish
           echo "SOURCE_SHA=$(git rev-parse HEAD)"
