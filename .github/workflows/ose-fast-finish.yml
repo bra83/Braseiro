@@ -1,8 +1,8 @@
-name: BRASEIRO OSE Fast Finish V2 Waves 3-10
+name: BRASEIRO OSE Fast Finish V4 Waves 3-10
 
 on:
   push:
-    branches: [ose-fast-finish]
+    branches: [ose-fast-finish, ose-fast-finish-v4]
     paths:
       - ".github/workflows/ose-fast-finish.yml"
       - "ose/**"
@@ -112,7 +112,8 @@ jobs:
           alias={'P1_MAP_ACTIVE_415x915.png':'P1_MAP_415x915.png','P1_SHEET_ACTIVE_415x915.png':'P1_SHEET_415x915.png','P1_COMPANY_ACTIVE_415x915.png':'P1_COMPANY_415x915.png'}
           def norm(p):
             im=Image.open(p).convert('RGB'); assert im.size==(415,915),(p,im.size)
-            return bytes(min(255,(v//9)*9+4) for v in im.tobytes())
+            # Must match the approved P1 canonicalizer in web-ui-p1/capture_p1.py exactly.
+            return bytes(max(0,min(255,((v+4)//9)*9-4)) for v in im.tobytes())
           out={}
           for n in names:
             ps=[Path('/tmp/c1')/n,Path('/tmp/c2')/n,Path('ose/web-ui/captures')/n]
@@ -122,7 +123,7 @@ jobs:
             av=norm(ap); assert nv[0]==av,n
             out[n]={'normalized_sha256':hashlib.sha256(nv[0]).hexdigest(),'visual_match':'PASS','runs':3}
           d=Path('ose/build/reports/fast-finish');d.mkdir(parents=True,exist_ok=True)
-          (d/'p1-captures-v2.json').write_text(json.dumps(out,indent=2))
+          (d/'p1-captures-v4.json').write_text(json.dumps(out,indent=2))
           PY
           grep -F 'data-channel="PLAYER_REACTION"' ose/web-ui-p1/p1.js >/dev/null
           test "$(grep -o 'data-intentional-mutation="true"' ose/web-ui-p1/p1.js | wc -l)" -eq 1
@@ -147,7 +148,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_V2_WAVES_3_9_EVIDENCE
+          name: BRASEIRO_OSE_FAST_FINISH_V4_WAVES_3_9_EVIDENCE
           path: |
             ose/build/reports/fast-finish/**
             ose/**/build/test-results/**
@@ -187,7 +188,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: BRASEIRO_OSE_FAST_FINISH_V2_WEBVIEW_EVIDENCE
+          name: BRASEIRO_OSE_FAST_FINISH_V4_WEBVIEW_EVIDENCE
           path: |
             ose/build/reports/fast-finish/webview/**
             ose/app-android/build/outputs/androidTest-results/**
@@ -203,9 +204,9 @@ jobs:
       - uses: actions/checkout@v4
         with: {ref: "${{ needs.waves-3-9.outputs.source_sha }}", fetch-depth: 0}
       - uses: actions/download-artifact@v4
-        with: {name: BRASEIRO_OSE_FAST_FINISH_V2_WAVES_3_9_EVIDENCE, path: evidence/waves-3-9}
+        with: {name: BRASEIRO_OSE_FAST_FINISH_V4_WAVES_3_9_EVIDENCE, path: evidence/waves-3-9}
       - uses: actions/download-artifact@v4
-        with: {name: BRASEIRO_OSE_FAST_FINISH_V2_WEBVIEW_EVIDENCE, path: evidence/webview}
+        with: {name: BRASEIRO_OSE_FAST_FINISH_V4_WEBVIEW_EVIDENCE, path: evidence/webview}
       - name: Final report and sole Android Studio ZIP
         shell: bash
         run: |
@@ -213,8 +214,8 @@ jobs:
           mkdir -p final
           SHA="$(git rev-parse HEAD)"
           cat > final/BRASEIRO_OSE_FINAL_REPORT.md <<EOF
-          # BRASEIRO OSE — FINAL FAST FINISH V2 REPORT
-          COMMAND_REVISION = FAST_FINISH_V2_2026-09-04T01:53-03:00
+          # BRASEIRO OSE — FINAL FAST FINISH V4 REPORT
+          COMMAND_REVISION = FAST_FINISH_V4_2026-09-04T04:42-03:00
           STATUS = RELEASE_CANDIDATE_A_E_PASS
           SOURCE_SHA = ${SHA}
           WAVE_3 = PASS
@@ -246,6 +247,6 @@ jobs:
           sha256sum final/BRASEIRO_OSE_FINAL_REPORT.md > final/BRASEIRO_OSE_FINAL_REPORT.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: BRASEIRO_OSE_FINAL_ANDROID_STUDIO_FAST_FINISH_V2
+          name: BRASEIRO_OSE_FINAL_ANDROID_STUDIO_FAST_FINISH_V4
           path: final/*
           if-no-files-found: error
