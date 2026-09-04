@@ -11,6 +11,9 @@
   const main=document.querySelector('#screen');
   const nav=document.querySelector('#primaryNav');
   const toast=document.querySelector('#toast');
+  const hasNative=()=>!!(window.BraseiroBridge&&typeof window.BraseiroBridge.postMessage==='function');
+  const postNative=(type,payload)=>{if(!hasNative())return false;window.BraseiroBridge.postMessage(JSON.stringify({version:1,type,payload}));return true};
+  window.BraseiroReceive=(raw)=>{try{const m=typeof raw==='string'?JSON.parse(raw):raw;const p=m.payload||{};if(m.type==='SessionUpdate'){const nt=document.querySelector('.narration-text');if(nt&&p.narration)nt.textContent=p.narration;const fb=document.querySelector('.mechanical-feedback span');if(fb&&p.feedback)fb.textContent=p.feedback;showToast(p.committed?'Estado confirmado e salvo.':'Sem mutação mecânica.');}else if(m.type==='GMHelpResponse'){showToast(p.answer||'GM_HELP sem resposta.')}else if(m.type==='BridgeError'){showToast('Erro: '+(p.message||'bridge'));}}catch(e){showToast('Resposta nativa inválida.')}};
 
   const model=Object.freeze({
     position:Object.freeze({space:'HEXCRAWL_MAP',q:3,r:2,label:'Colinas do Outeiro'}),
@@ -77,11 +80,12 @@
       <div class="mechanical-feedback p0-card"><b>Feedback</b><span>${n.feedback}</span></div>
     </section>`;
     main.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click',()=>{main.querySelector('#reaction').value=b.dataset.suggest;main.querySelector('#reaction').focus()}));
-    main.querySelector('.gm-help').addEventListener('click',()=>showToast('GM_HELP: consulta somente leitura; campanha/RNG inalterados.'));
-    main.querySelector('.send-reaction').addEventListener('click',()=>{const v=main.querySelector('#reaction').value.trim();showToast(v?'PLAYER_REACTION encaminhado ao contrato de resolução.':'Escreva uma reação antes de enviar.');});
+    main.querySelector('.gm-help').addEventListener('click',()=>{const qv=main.querySelector('#reaction').value.trim()||'turn';if(!postNative('GMHelp',{question:qv}))showToast('GM_HELP: consulta somente leitura; campanha/RNG inalterados.');});
+    main.querySelector('.send-reaction').addEventListener('click',()=>{const v=main.querySelector('#reaction').value.trim();if(!v){showToast('Escreva uma reação antes de enviar.');return;}const ok=postNative('PlayerReaction',{reactionId:'ui-'+Date.now(),text:v,surface:String(state).toUpperCase()});showToast(ok?'PLAYER_REACTION enviado ao Rules/Session Engine.':'PLAYER_REACTION em preview; bridge nativa ausente.');});
     main.querySelector('#tts').addEventListener('click',()=>{
       const visible=main.querySelector('.narration-scroll').innerText.trim();
-      if('speechSynthesis' in window && visible){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(visible);u.lang='pt-BR';speechSynthesis.speak(u);}
+      if(postNative('TtsCommand',{command:'play',visibleNarration:visible})){showToast('TTS nativo: narração visível.');}
+      else if('speechSynthesis' in window && visible){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(visible);u.lang='pt-BR';speechSynthesis.speak(u);}
       else showToast('TTS indisponível neste navegador.');
     });
   }
@@ -134,4 +138,6 @@
 
   function render(){renderChrome(); if(screen==='map')renderMap(); else if(screen==='sheet')renderSheet(); else if(screen==='company')renderCompany(); else renderSession(); device.dataset.screen=screen;device.dataset.state=state;}
   render();
+  document.body.dataset.ready='true';
+  postNative('ViewState',{request:'initial'});
 })();
