@@ -35,5 +35,6 @@ include(
     ":backup-restore",
     ":tts-api",
     ":tts-android",
+    ":integration-tests",
     ":app-android"
 )
