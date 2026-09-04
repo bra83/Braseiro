@@ -11,7 +11,21 @@ export default defineConfig({
     timezoneId: 'UTC',
     colorScheme: 'light',
     reducedMotion: 'reduce',
-    deviceScaleFactor: 1
+    deviceScaleFactor: 1,
+    launchOptions: {
+      args: [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-lcd-text',
+        '--font-render-hinting=none',
+        '--force-device-scale-factor=1',
+        '--run-all-compositor-stages-before-draw',
+        '--disable-threaded-animation',
+        '--disable-threaded-scrolling'
+      ]
+    }
   },
   webServer: {
     command: 'python3 -m http.server 4173 --directory dist',
