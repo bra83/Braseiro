@@ -69,7 +69,7 @@ jobs:
 
       - name: Build approved P1 web runtime
         working-directory: ose/web-ui
-        run: npm install --ignore-scripts && npm run build
+        run: npm run build
 
       - name: JVM unit integration regression Waves 3-9
         working-directory: ose
@@ -88,7 +88,7 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: ose/web-ui
-        run: npx playwright install --with-deps chromium
+        run: npm install --ignore-scripts --no-audit --no-fund && npx playwright install --with-deps chromium
       - name: P1 deterministic capture run 1
         working-directory: ose/web-ui
         run: npm run test:capture && rm -rf /tmp/c1 && cp -a captures /tmp/c1
