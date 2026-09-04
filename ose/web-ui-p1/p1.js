@@ -47,8 +47,6 @@
     render();
   }
   function showToast(msg){toast.textContent=msg;toast.hidden=false;clearTimeout(showToast.t);showToast.t=setTimeout(()=>toast.hidden=true,1500)}
-  function postNative(type,payload){try{if(window.BraseiroBridge&&typeof window.BraseiroBridge.postMessage==='function'){window.BraseiroBridge.postMessage(JSON.stringify({version:1,type,payload}));return true}}catch(_e){}return false}
-  window.BraseiroReceive=(raw)=>{try{const m=typeof raw==='string'?JSON.parse(raw):raw;if(m.type==='SESSION_UPDATE'){const t=document.querySelector('.narration-text');if(t)t.textContent=m.narration||t.textContent;const f=document.querySelector('.mechanical-feedback span');if(f)f.textContent=m.feedback||'';showToast('Estado comprometido e nova narração recebida.')}else if(m.type==='GM_HELP_RESULT'){showToast(m.answer||'GM_HELP concluído.')}}catch(_e){}};
 
   const narrative={
     active:{label:'SESSÃO ATIVA',title:'A porta sob o outeiro',text:`O corredor de pedra mergulha para leste e a luz da tocha vacila nos encaixes úmidos das paredes. À frente, uma porta de carvalho reforçada por tiras de ferro interrompe a passagem. O ar é frio e cheira a terra fechada. Há marcas antigas no piso, quase apagadas por poeira e água. Barbara descreve apenas o que os aventureiros podem perceber agora; nenhuma consequência é resolvida até que você declare a reação do grupo.`,feedback:'Sem resolução pendente. Posição canônica preservada em Q3,R2.'},
@@ -79,12 +77,12 @@
       <div class="mechanical-feedback p0-card"><b>Feedback</b><span>${n.feedback}</span></div>
     </section>`;
     main.querySelectorAll('[data-suggest]').forEach(b=>b.addEventListener('click',()=>{main.querySelector('#reaction').value=b.dataset.suggest;main.querySelector('#reaction').focus()}));
-    main.querySelector('.gm-help').addEventListener('click',()=>{if(!postNative('GM_HELP',{question:'Ajuda contextual da cena'}))showToast('GM_HELP: consulta somente leitura; campanha/RNG inalterados.');});
-    main.querySelector('.send-reaction').addEventListener('click',()=>{const v=main.querySelector('#reaction').value.trim();if(!v){showToast('Escreva uma reação antes de enviar.');return}if(!postNative('PLAYER_REACTION',{text:v}))showToast('PLAYER_REACTION encaminhado ao contrato de resolução.');});
+    main.querySelector('.gm-help').addEventListener('click',()=>showToast('GM_HELP: consulta somente leitura; campanha/RNG inalterados.'));
+    main.querySelector('.send-reaction').addEventListener('click',()=>{const v=main.querySelector('#reaction').value.trim();showToast(v?'PLAYER_REACTION encaminhado ao contrato de resolução.':'Escreva uma reação antes de enviar.');});
     main.querySelector('#tts').addEventListener('click',()=>{
       const visible=main.querySelector('.narration-scroll').innerText.trim();
-      if(!visible){showToast('TTS indisponível sem narração visível.');return}
-      if(!postNative('TTS_PLAY',{text:visible}))showToast('TTS nativo é executado somente no Android.');
+      if('speechSynthesis' in window && visible){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(visible);u.lang='pt-BR';speechSynthesis.speak(u);}
+      else showToast('TTS indisponível neste navegador.');
     });
   }
 
@@ -136,6 +134,4 @@
 
   function render(){renderChrome(); if(screen==='map')renderMap(); else if(screen==='sheet')renderSheet(); else if(screen==='company')renderCompany(); else renderSession(); device.dataset.screen=screen;device.dataset.state=state;}
   render();
-  document.body.dataset.ready='true';
-  postNative('ViewState',{screen,state,ready:true});
 })();
