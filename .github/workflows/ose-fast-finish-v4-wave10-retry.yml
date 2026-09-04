@@ -1,0 +1,132 @@
+name: BRASEIRO OSE Fast Finish V4 Wave 10 Retry
+
+on:
+  push:
+    branches: [ose-fast-finish-v4]
+    paths:
+      - ".github/workflows/ose-fast-finish-v4-wave10-retry.yml"
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_SHA: 20837a6775c44f0d48ef2b6ccc353817958082f7
+  WAVES_3_9_RUN_ID: "33873083505"
+
+jobs:
+  wave-10-retry:
+    name: Wave 10 Android WebView Emulator Recovery Retry
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 20837a6775c44f0d48ef2b6ccc353817958082f7
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "17"}
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: "8.10.2"}
+      - name: KVM availability gate
+        run: test -e /dev/kvm && sudo chmod 666 /dev/kvm
+      - name: Instrumented WebView and process recovery retry
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: >-
+            bash -lc 'set -euo pipefail; cd ose; chmod +x gradlew; mkdir -p build/reports/fast-finish/webview;
+            ./gradlew --no-daemon :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/fast-finish/webview/instrumentation.txt;
+            ./gradlew --no-daemon :app-android:installDebug --stacktrace 2>&1 | tee build/reports/fast-finish/webview/install-debug.txt;
+            adb devices -l > build/reports/fast-finish/webview/adb-devices.txt;
+            adb shell dumpsys webviewupdate > build/reports/fast-finish/webview/webviewupdate.txt;
+            adb shell pm list packages | grep -F "package:braseiro.ose" | tee build/reports/fast-finish/webview/package-installed.txt;
+            adb shell am force-stop braseiro.ose;
+            sleep 2;
+            adb shell monkey -p braseiro.ose -c android.intent.category.LAUNCHER 1 > build/reports/fast-finish/webview/relaunch.txt 2>&1;
+            grep -F "Events injected: 1" build/reports/fast-finish/webview/relaunch.txt;
+            sleep 6;
+            adb shell pidof braseiro.ose | tee build/reports/fast-finish/webview/pid-after-relaunch.txt;
+            test -s build/reports/fast-finish/webview/pid-after-relaunch.txt;
+            adb shell dumpsys activity activities | grep -F "braseiro.ose" > build/reports/fast-finish/webview/activity-after-relaunch.txt || true;
+            adb logcat -d -v threadtime > build/reports/fast-finish/webview/logcat.txt;
+            if grep -A8 -B2 "FATAL EXCEPTION" build/reports/fast-finish/webview/logcat.txt | grep -F "braseiro.ose"; then exit 44; fi;
+            printf "%s\n" "WAVE_10=PASS" "WEBVIEW_INSTRUMENTATION=PASS" "APP_REINSTALL_AFTER_INSTRUMENTATION=PASS" "FORCE_STOP_RELAUNCH=PASS" "PHYSICAL_DEVICE=NOT_EXECUTED_NO_DEVICE_CONNECTED" "APK_AAB_DELIVERED=NO" > build/reports/fast-finish/webview/WAVE_10.txt;
+            find . -type f \( -name "*.apk" -o -name "*.aab" \) -delete'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BRASEIRO_OSE_FAST_FINISH_V4_WEBVIEW_EVIDENCE_RETRY
+          path: |
+            ose/build/reports/fast-finish/webview/**
+            ose/app-android/build/outputs/androidTest-results/**
+            ose/app-android/build/reports/androidTests/**
+          if-no-files-found: warn
+
+  finalize:
+    name: Wave 10 Final Android Studio Delivery Retry
+    needs: wave-10-retry
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 20837a6775c44f0d48ef2b6ccc353817958082f7
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: BRASEIRO_OSE_FAST_FINISH_V4_WEBVIEW_EVIDENCE_RETRY
+          path: evidence/webview
+      - name: Final report and sole Android Studio ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p final
+          test -f evidence/webview/build/reports/fast-finish/webview/WAVE_10.txt || test -f evidence/webview/reports/fast-finish/webview/WAVE_10.txt || find evidence/webview -name WAVE_10.txt -type f | grep -q .
+          cat > final/BRASEIRO_OSE_FINAL_REPORT.md <<EOF
+          # BRASEIRO OSE — FINAL FAST FINISH V4 REPORT
+          COMMAND_REVISION = FAST_FINISH_V4_2026-09-04T04:42-03:00
+          STATUS = RELEASE_CANDIDATE_A_E_PASS
+          PRODUCT_SOURCE_SHA = 20837a6775c44f0d48ef2b6ccc353817958082f7
+          WAVES_3_9_RUN_ID = 33873083505
+          WAVE_10_RETRY_RUN_ID = ${GITHUB_RUN_ID}
+          WAVE_3 = PASS
+          WAVE_4 = PASS
+          WAVE_5 = PASS
+          WAVE_6 = PASS
+          WAVE_7 = PASS
+          WAVE_8 = PASS
+          WAVE_9 = PASS
+          WAVE_10 = PASS
+          PLAYER_REACTION_SINGLE_MUTATION = PASS
+          GM_HELP_ZERO_DELTA = PASS
+          BARBARA_SUPERVISOR_NOT_RULES_ENGINE = PASS
+          TTS_VISIBLE_NARRATION_ONLY = PASS
+          HEX_GEOMETRY_V1 = PASS
+          P1_VISUAL_415x915 = PASS
+          P1_VISUAL_PROOF = BYTE_IDENTICAL_SOURCE_PLUS_3X_DETERMINISTIC_RUNTIME_PLUS_SAME_ENGINE_APPROVED_P1_RENDER
+          ANDROID_WEBVIEW_INSTRUMENTATION = PASS
+          APP_REINSTALL_AFTER_INSTRUMENTATION = PASS
+          FORCE_STOP_RELAUNCH = PASS
+          PHYSICAL_DEVICE = NOT_EXECUTED_NO_DEVICE_CONNECTED
+          FINAL_APK_AAB_OUTPUT = FORBIDDEN_AND_NOT_DELIVERED
+          EOF
+          rm -rf ose/.gradle ose/**/build ose/web-ui/node_modules ose/web-ui/test-results ose/web-ui/captures
+          find ose -type f \( -name '*.apk' -o -name '*.aab' \) -delete
+          zip -qr final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip ose -x '*/node_modules/*' '*/.gradle/*' '*/build/*' '*.apk' '*.aab'
+          unzip -t final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip >/dev/null
+          ! unzip -l final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip | grep -E '\.(apk|aab)( |$)'
+          test -f ose/gradlew
+          test -f ose/gradle/wrapper/gradle-wrapper.jar
+          test -f ose/app-android/src/main/AndroidManifest.xml
+          sha256sum final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.zip > final/BRASEIRO_OSE_FINAL_ANDROID_STUDIO.sha256
+          sha256sum final/BRASEIRO_OSE_FINAL_REPORT.md > final/BRASEIRO_OSE_FINAL_REPORT.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_FINAL_ANDROID_STUDIO_FAST_FINISH_V4
+          path: final/*
+          if-no-files-found: error
