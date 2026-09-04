@@ -1,0 +1,75 @@
+name: BRASEIRO OSE P1 Assets Bootstrap
+
+on:
+  push:
+    branches: [ose-fast-finish]
+    paths:
+      - ".github/workflows/ose-p1-assets-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize-p1-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download approved P1 closure bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE_ID='1RsAOsyYBdUwn8N-9AIkZxpBGIU83D976'
+          EXPECTED='e08ab93d054a5e244c9b5c683edcf0c8c515195c7a6b004f91eaa01b94a2e468'
+          OUT=/tmp/p1-bundle.zip
+          urls=(
+            "https://drive.usercontent.google.com/download?id=${FILE_ID}&export=download&confirm=t"
+            "https://drive.google.com/uc?export=download&id=${FILE_ID}&confirm=t"
+          )
+          ok=0
+          for u in "${urls[@]}"; do
+            rm -f "$OUT"
+            if curl -fL --retry 2 --retry-delay 1 --connect-timeout 15 --max-time 180 "$u" -o "$OUT"; then
+              got="$(sha256sum "$OUT" | awk '{print $1}')"
+              if [ "$got" = "$EXPECTED" ]; then ok=1; break; fi
+              echo "Downloaded bytes SHA mismatch: $got" >&2
+            fi
+          done
+          test "$ok" = 1
+          unzip -q "$OUT" 'ose/assets/ose-user-pack-v1/*' 'ose/web-ui-p1/*' -d /tmp/p1
+          rm -rf ose/assets/ose-user-pack-v1 ose/web-ui-p1
+          cp -a /tmp/p1/ose/assets/ose-user-pack-v1 ose/assets/
+          cp -a /tmp/p1/ose/web-ui-p1 ose/
+          test -f ose/assets/ose-user-pack-v1/BUILD_MANIFEST.json
+          test -f ose/web-ui-p1/index.html
+          test -f ose/web-ui-p1/p1.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('ose/assets/ose-user-pack-v1')
+          refs=[
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/arte_telas/corredor_escuro_porta_carvalho.png',
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/hexes_compactos/planicie.png',
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/hexes_destaque/hex_colinas_arborizadas.png',
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/retratos/retrato_alda_guerreira.png',
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/tokens_compactos/guerreiro.png',
+            'source/TALES_VTT_ASSET_PACK/assets_individuais/marca_navegacao/logo_old_school_essentials.png',
+          ]
+          for rel in refs:
+              p=root/rel
+              assert p.is_file() and p.stat().st_size>0, rel
+              b=p.read_bytes(); assert b[:8]==b'\x89PNG\r\n\x1a\n', rel
+              print(rel, hashlib.sha256(b).hexdigest())
+          PY
+      - name: Commit approved P1 runtime assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "BRASEIRO OSE Executor"
+          git config user.email "actions@users.noreply.github.com"
+          git add ose/assets/ose-user-pack-v1 ose/web-ui-p1
+          git commit -m "OSE fast finish: vendor approved P1 runtime assets"
+          git push origin HEAD:ose-fast-finish
+          echo "P1_ASSET_SOURCE_SHA=$(git rev-parse HEAD)"
