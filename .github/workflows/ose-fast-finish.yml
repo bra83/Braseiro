@@ -2,7 +2,7 @@ name: BRASEIRO OSE Fast Finish V4 Waves 3-10
 
 on:
   push:
-    branches: [ose-fast-finish, ose-fast-finish-v4]
+    branches: [ose-fast-finish-v4]
     paths:
       - ".github/workflows/ose-fast-finish.yml"
       - "ose/**"
@@ -99,7 +99,7 @@ jobs:
         working-directory: ose/web-ui
         run: npm run test:capture
 
-      - name: P1 normalized visual regression and architecture invariants
+      - name: P1 normalized visual diagnostic
         shell: bash
         run: |
           set -euo pipefail
@@ -111,26 +111,81 @@ jobs:
           names=['P1_SESSION_ACTIVE_415x915.png','P1_SESSION_ENCOUNTER_415x915.png','P1_SESSION_COMBAT_415x915.png','P1_SESSION_RECOVERY_415x915.png','P1_MAP_ACTIVE_415x915.png','P1_SHEET_ACTIVE_415x915.png','P1_COMPANY_ACTIVE_415x915.png']
           alias={'P1_MAP_ACTIVE_415x915.png':'P1_MAP_415x915.png','P1_SHEET_ACTIVE_415x915.png':'P1_SHEET_415x915.png','P1_COMPANY_ACTIVE_415x915.png':'P1_COMPANY_415x915.png'}
           def norm(p):
-            im=Image.open(p).convert('RGB'); assert im.size==(415,915),(p,im.size)
-            # Must match the approved P1 canonicalizer in web-ui-p1/capture_p1.py exactly.
+            im=Image.open(p).convert('RGB')
+            if im.size!=(415,915): raise RuntimeError(f'{p}: dimensions={im.size}')
             return bytes(max(0,min(255,((v+4)//9)*9-4)) for v in im.tobytes())
-          out={}
+          report={'gate':'PENDING','screens':{},'all_three_runs_equal':True,'all_reference_matches':True}
           for n in names:
             ps=[Path('/tmp/c1')/n,Path('/tmp/c2')/n,Path('ose/web-ui/captures')/n]
             ap=Path('ose/web-ui-p1/captures')/alias.get(n,n)
-            for p in ps+[ap]: assert p.is_file(),p
-            nv=[norm(p) for p in ps]; assert nv[0]==nv[1]==nv[2],n
-            av=norm(ap); assert nv[0]==av,n
-            out[n]={'normalized_sha256':hashlib.sha256(nv[0]).hexdigest(),'visual_match':'PASS','runs':3}
+            for p in ps+[ap]:
+              if not p.is_file(): raise FileNotFoundError(p)
+            vals=[norm(p) for p in ps]
+            ref=norm(ap)
+            runs_equal=vals[0]==vals[1]==vals[2]
+            ref_match=vals[2]==ref
+            diffs=[abs(a-b) for a,b in zip(vals[2],ref)]
+            diff_count=sum(1 for d in diffs if d)
+            max_delta=max(diffs) if diffs else 0
+            row={
+              'run1_sha256':hashlib.sha256(vals[0]).hexdigest(),
+              'run2_sha256':hashlib.sha256(vals[1]).hexdigest(),
+              'run3_sha256':hashlib.sha256(vals[2]).hexdigest(),
+              'reference_sha256':hashlib.sha256(ref).hexdigest(),
+              'runs_equal':runs_equal,
+              'reference_match':ref_match,
+              'differing_channels':diff_count,
+              'differing_channel_ratio':diff_count/len(ref),
+              'max_channel_delta':max_delta
+            }
+            report['screens'][n]=row
+            report['all_three_runs_equal'] &= runs_equal
+            report['all_reference_matches'] &= ref_match
+            print(n, json.dumps(row,sort_keys=True))
+          report['gate']='PASS' if report['all_three_runs_equal'] and report['all_reference_matches'] else 'FAIL'
           d=Path('ose/build/reports/fast-finish');d.mkdir(parents=True,exist_ok=True)
-          (d/'p1-captures-v4.json').write_text(json.dumps(out,indent=2))
+          (d/'p1-visual-diagnostic-v4.json').write_text(json.dumps(report,indent=2))
+          print('P1_VISUAL_DIAGNOSTIC_GATE='+report['gate'])
           PY
-          grep -F 'data-channel="PLAYER_REACTION"' ose/web-ui-p1/p1.js >/dev/null
-          test "$(grep -o 'data-intentional-mutation="true"' ose/web-ui-p1/p1.js | wc -l)" -eq 1
-          grep -F "postNative('GMHelp'" ose/web-ui-p1/p1.js >/dev/null
-          grep -F "postNative('TtsCommand'" ose/web-ui-p1/p1.js >/dev/null
-          grep -F 'data-direct-movement="forbidden"' ose/web-ui-p1/p1.js >/dev/null
-          grep -F 'data-geometry-version="1"' ose/web-ui-p1/p1.js >/dev/null
+
+      - name: P1 architecture invariant diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          f=ose/web-ui-p1/p1.js
+          check(){ grep -F "$2" "$f" >/dev/null || { echo "$1=FAIL"; exit "$3"; }; echo "$1=PASS"; }
+          check PLAYER_REACTION_CHANNEL 'data-channel="PLAYER_REACTION"' 51
+          count="$(grep -o 'data-intentional-mutation="true"' "$f" | wc -l)"
+          test "$count" -eq 1 || { echo "SINGLE_INTENTIONAL_MUTATION=FAIL count=$count"; exit 52; }
+          echo 'SINGLE_INTENTIONAL_MUTATION=PASS'
+          check GM_HELP_BRIDGE "postNative('GMHelp'" 53
+          check TTS_BRIDGE "postNative('TtsCommand'" 54
+          check MAP_DIRECT_MOVEMENT_FORBIDDEN 'data-direct-movement="forbidden"' 55
+          check HEX_GEOMETRY_V1 'data-geometry-version="1"' 56
+
+      - name: P1 visual equality enforcement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          p='ose/build/reports/fast-finish/p1-visual-diagnostic-v4.json'
+          d=json.load(open(p))
+          assert d['all_three_runs_equal'], 'P1 capture determinism failed; inspect diagnostic artifact'
+          assert d['all_reference_matches'], 'P1 approved-reference visual equality failed; inspect diagnostic artifact'
+          assert d['gate']=='PASS', d
+          print('P1_NORMALIZED_VISUAL_REGRESSION=PASS')
+          PY
+
+      - name: Upload P1 visual diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_FAST_FINISH_V4_P1_VISUAL_DIAGNOSTIC
+          path: |
+            ose/build/reports/fast-finish/p1-visual-diagnostic-v4.json
+            ose/web-ui/captures/*.png
+          if-no-files-found: warn
 
       - name: Consolidate Waves 3-9 evidence
         shell: bash
