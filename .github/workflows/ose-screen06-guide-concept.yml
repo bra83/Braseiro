@@ -1,0 +1,72 @@
+name: BRASEIRO OSE Screen 06 Guide Concept
+on:
+  push:
+    branches: [ose-session-visual-lock-strict-2]
+    paths:
+      - '.github/ose-screen06-guide-concept.trigger'
+permissions:
+  contents: write
+jobs:
+  screen06-guide-concept:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ose-session-visual-lock-strict-2
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install concept renderer only
+        run: python3 -m pip install --disable-pip-version-check --quiet pillow
+      - name: Revalidate 20 pinned visual binaries
+        working-directory: ose/web-ui
+        run: python3 scripts/validate_visual_lock_assets.py
+      - name: Build canonical SCREEN_06 concept
+        run: python3 ose/docs/screen-06/BUILD_SCREEN_06.py
+      - name: Validate architecture artifacts and isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image
+          p=Path('ose/docs/screen-06')
+          assert Image.open(p/'SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915.png').size==(415,915)
+          m=json.loads((p/'SCREEN_06_SESSION_ACTIVE_MAP.json').read_text())
+          assert m['hard_contracts']['campaign_advance_channel']=='PLAYER_REACTION_ONLY'
+          assert m['hard_contracts']['primary_nav']==['SESSÃO','MAPA','FICHA','COMPANHIA']
+          assert m['hard_contracts']['tts_scope']=='VISIBLE_MASTER_NARRATION_ONLY'
+          for e in m['elements']:
+              x,y,w,h=e['bbox']
+              assert x>=0 and y>=0 and w>0 and h>0 and x+w<=415 and y+h<=915
+          print('SCREEN06_VIEWPORT=PASS')
+          print('SCREEN06_ANCHORS=PASS')
+          print('SCREEN06_PLAYER_REACTION=PASS')
+          print('SCREEN06_TTS_SCOPE=PASS')
+          print('WAVE3_STARTED=NO')
+          PY
+          bad="$(git diff --name-only | grep -Ev '^ose/docs/screen-06/(SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915\.png|SCREEN_06_SESSION_ACTIVE_BUILD_REPORT\.json)$' || true)"
+          test -z "$bad" || { echo "UNAUTHORIZED_WORKTREE_CHANGE=$bad"; exit 1; }
+          echo 'CSS_LAYOUT_CHANGED=NO'
+      - name: Commit canonical concept and build evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'braseiro-build-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915.png ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_BUILD_REPORT.json
+          git commit -m 'OSE Screen 06: materialize canonical 415x915 guide concept'
+          git push origin HEAD:ose-session-visual-lock-strict-2
+          echo "SCREEN06_FINAL_COMMIT=$(git rev-parse HEAD)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BRASEIRO_OSE_SCREEN_06_GUIDE_REAUDIT
+          path: |
+            ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_CANONICAL_415x915.png
+            ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_MAP.json
+            ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_CONTRACT.md
+            ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_QA.md
+            ose/docs/screen-06/SCREEN_06_SESSION_ACTIVE_BUILD_REPORT.json
+          if-no-files-found: error
