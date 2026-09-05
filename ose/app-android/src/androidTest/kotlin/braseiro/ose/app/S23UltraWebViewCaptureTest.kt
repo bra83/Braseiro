@@ -16,6 +16,11 @@ class S23UltraWebViewCaptureTest {
     fun capturePrimaryScreensFromRealAndroidWebView() {
         val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
         ui.executeShellCommand("mkdir -p /sdcard/s23-captures").close()
+        // Android's first-run immersive-mode education overlay is system UI, not app UI.
+        // Suppress it so screenshots are evidence of the WebView composition itself.
+        ui.executeShellCommand("settings put secure immersive_mode_confirmations confirmed").close()
+        Thread.sleep(250)
+
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntilReady(scenario)
             waitForVisualScreen(scenario, "session")
