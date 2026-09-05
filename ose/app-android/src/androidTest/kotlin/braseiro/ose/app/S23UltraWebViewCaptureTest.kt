@@ -18,6 +18,7 @@ class S23UltraWebViewCaptureTest {
         ui.executeShellCommand("mkdir -p /sdcard/s23-captures").close()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntilReady(scenario)
+            waitForVisualScreen(scenario, "session")
             capture("s23ultra_webview_01_session.png")
 
             navigate(scenario, "map")
@@ -39,6 +40,8 @@ class S23UltraWebViewCaptureTest {
             if (ready != "\"true\"") Thread.sleep(100)
         }
         assertEquals("\"true\"", ready)
+        val text = evaluateJavascript(scenario, "document.body.innerText.indexOf('CRIPTA SOB O OUTEIRO') >= 0")
+        assertEquals("true", text)
     }
 
     private fun navigate(scenario: ActivityScenario<MainActivity>, target: String) {
@@ -47,11 +50,33 @@ class S23UltraWebViewCaptureTest {
             "(function(){var a=document.querySelectorAll('[data-nav]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-nav')==='$target'){a[i].click();return true;}}return false;})()"
         )
         assertEquals("true", result)
-        Thread.sleep(700)
+        waitForVisualScreen(scenario, target)
+    }
+
+    private fun waitForVisualScreen(scenario: ActivityScenario<MainActivity>, target: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        var current: String? = null
+        while (System.nanoTime() < deadline && current != "\"$target\"") {
+            current = evaluateJavascript(
+                scenario,
+                "document.querySelector('#device') && document.querySelector('#device').dataset.screen"
+            )
+            if (current != "\"$target\"") Thread.sleep(80)
+        }
+        assertEquals("\"$target\"", current)
+        scenario.onActivity { activity ->
+            activity.webViewForTest().invalidate()
+            activity.webViewForTest().requestLayout()
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        // Android WebView's compositor can commit a frame after the DOM/evaluateJavascript callback.
+        // This delay is evidence synchronization, not a substitute for the WebView test itself.
+        Thread.sleep(1800)
     }
 
     private fun capture(fileName: String) {
-        Thread.sleep(700)
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        Thread.sleep(500)
         val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation
             .executeShellCommand("screencap -p /sdcard/s23-captures/$fileName")
         pfd.close()
