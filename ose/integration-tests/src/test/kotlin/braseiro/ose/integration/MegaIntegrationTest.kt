@@ -1,6 +1,7 @@
 package braseiro.ose.integration
 
 import braseiro.ose.backup.BackupCodec
+import braseiro.ose.barbara.BarbaraSupervisorPort
 import braseiro.ose.barbara.DeterministicBarbaraSupervisor
 import braseiro.ose.character.CharacterCreator
 import braseiro.ose.dungeon.DungeonGeneratorV1
@@ -109,6 +110,7 @@ class MegaIntegrationTest {
             val finalState = session.loadSession(envelope.campaignId).campaignState
             assertEquals(40, finalState.time.turns)
             assertEquals(120, finalState.game.actionLog.count { it.channel == "PLAYER_REACTION" })
+            assertTrue(finalState.game.actionLog.all { it.narrativeCommitted })
             assertEquals(SpatialRef.Hex("world-1", 0, 0), finalState.position.primary)
         }
     }
@@ -126,6 +128,7 @@ class MegaIntegrationTest {
         val afterFirst = firstEngine.loadSession(envelope.campaignId)
         assertEquals(1, afterFirst.campaignState.time.turns)
         assertEquals(listOf("client:ui-1001"), afterFirst.campaignState.game.actionLog.map { it.actionId })
+        assertTrue(afterFirst.campaignState.game.actionLog.single().narrativeCommitted)
         val firstHash = CanonicalStateHash.sha256(afterFirst)
 
         val immediateRetry = firstEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-1001")
@@ -152,6 +155,53 @@ class MegaIntegrationTest {
             listOf("client:ui-1001", "client:ui-1002"),
             afterDistinct.campaignState.game.actionLog.map { it.actionId }
         )
+    }
+
+    @Test
+    fun `retry after narration failure resumes projection without reapplying mechanics`() {
+        val repo = MemoryRepo()
+        val envelope = Fixtures.campaign("narrative-recovery", RuleProfile.OSE_ADVANCED_FANTASY)
+        repo.create(envelope)
+        val failingBarbara = object : BarbaraSupervisorPort {
+            override fun narrate(
+                committed: CampaignEnvelope,
+                playerReaction: String,
+                mechanicalFeedback: String,
+                trace: RuleTrace
+            ): String = error("simulated narration transport failure")
+
+            override fun help(readOnly: CampaignEnvelope, question: String): String = "unused"
+        }
+        val failingEngine = SessionEngine(repo, RulesRefereeBoundary(), failingBarbara)
+        assertFailsWith<IllegalStateException> {
+            failingEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-recover-1")
+        }
+        val mechanicsCommitted = failingEngine.loadSession(envelope.campaignId)
+        assertEquals(1, mechanicsCommitted.campaignState.time.turns)
+        assertEquals(1, mechanicsCommitted.campaignState.game.actionLog.size)
+        assertFalse(mechanicsCommitted.campaignState.game.actionLog.single().narrativeCommitted)
+        val rngAfterMechanics = mechanicsCommitted.campaignState.game.rngStreams
+        val resourcesAfterMechanics = mechanicsCommitted.campaignState.resources
+        val positionAfterMechanics = mechanicsCommitted.campaignState.position
+
+        val restoredEngine = SessionEngine(repo, RulesRefereeBoundary(), DeterministicBarbaraSupervisor())
+        val recovered = restoredEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-recover-1")
+        assertTrue(recovered.duplicate)
+        assertNull(recovered.result)
+        assertTrue(recovered.narration.startsWith("Mestre:"))
+
+        val afterRecovery = restoredEngine.loadSession(envelope.campaignId)
+        assertEquals(1, afterRecovery.campaignState.time.turns)
+        assertEquals(1, afterRecovery.campaignState.game.actionLog.size)
+        assertTrue(afterRecovery.campaignState.game.actionLog.single().narrativeCommitted)
+        assertEquals(rngAfterMechanics, afterRecovery.campaignState.game.rngStreams)
+        assertEquals(resourcesAfterMechanics, afterRecovery.campaignState.resources)
+        assertEquals(positionAfterMechanics, afterRecovery.campaignState.position)
+
+        val finalHash = CanonicalStateHash.sha256(afterRecovery)
+        val acknowledgedRetry = restoredEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-recover-1")
+        assertTrue(acknowledgedRetry.duplicate)
+        assertEquals(finalHash, CanonicalStateHash.sha256(restoredEngine.loadSession(envelope.campaignId)))
     }
 
     @Test
