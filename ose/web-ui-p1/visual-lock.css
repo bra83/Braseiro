@@ -1,0 +1,55 @@
+/* BRASEIRO OSE — Session visual lock exact-asset layer.
+   Geometry/data remain DOM-driven. These rules only bind the vendored canonical visual assets. */
+#device[data-screen="session"] .brand{content:url('assets/001_logo_ose.png')}
+#device[data-screen="session"] .p0-topbar .icon-button img{content:url('assets/003_icone_configuracoes.png')}
+#device[data-screen="session"] .scene-torch>img{content:url('assets/008_status_tocha_30m.png');width:38px;height:38px}
+
+#device[data-screen="session"] .master-panel{
+  border:0;
+  border-radius:0;
+  background:transparent url('assets/OSE_SESSION_A502_frame_narracao_flexivel.png') center/100% 100% no-repeat;
+  box-shadow:none;
+  padding:14px 16px 12px;
+}
+#device[data-screen="session"] .master-panel:before{display:none}
+#device[data-screen="session"] .master-diamond{display:none}
+#device[data-screen="session"] .scroll-hint{display:none}
+
+#device[data-screen="session"] .rail-card.tts img{content:url('assets/OSE_SESSION_NEW_A701_icone_tts_ouvir.png');width:40px;height:39px}
+#device[data-screen="session"] .rail-card.help img{content:url('assets/OSE_SESSION_A501_icone_gm_help.png');width:40px;height:39px}
+
+#device[data-screen="session"] .session-suggestions button{
+  border:0;
+  border-radius:0;
+  background:transparent url('assets/OSE_GLOBAL_A201_botao_base_neutro_sem_texto.png') center/100% 100% no-repeat;
+  padding:5px 7px;
+}
+#device[data-screen="session"] .session-suggestions button:active,
+#device[data-screen="session"] .session-suggestions button:focus-visible{
+  background-image:url('assets/OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png');
+}
+
+#device[data-screen="session"] .reaction-input{
+  border:0;
+  border-radius:0;
+  background:transparent url('assets/072_painel_pergaminho_pautado.png') center/100% 100% no-repeat;
+  padding:16px 15px 13px;
+  outline-offset:2px;
+}
+#device[data-screen="session"] .send-reaction{
+  border:0;
+  border-radius:0;
+  background:#722619 url('assets/OSE_GLOBAL_A202_botao_base_ativo_sem_texto.png') center/100% 100% no-repeat;
+  color:#fff;
+  text-shadow:0 1px 0 #32100d;
+}
+
+#device[data-screen="session"] .nav-item:nth-child(1) img{content:url('assets/006_icone_pergaminho.png')}
+#device[data-screen="session"] .nav-item:nth-child(2) img{content:url('assets/013_icone_mapa.png')}
+#device[data-screen="session"] .nav-item:nth-child(3) img{content:url('assets/012_icone_livros.png')}
+#device[data-screen="session"] .nav-item:nth-child(4) img{content:url('assets/014_icone_grupo.png')}
+
+/* Preserve paper-like editorial density at full S23 geometry. */
+@media (min-width:416px){
+  body{align-items:flex-start}
+}
