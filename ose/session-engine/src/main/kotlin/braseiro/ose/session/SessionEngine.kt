@@ -5,7 +5,7 @@ import braseiro.ose.model.*
 import braseiro.ose.persistence.api.*
 import braseiro.ose.referee.RefereeResolutionPort
 import braseiro.ose.rng.*
-import braseiro.ose.rules.api.RuleTrace
+import braseiro.ose.rules.api.*
 import braseiro.ose.world.WorldEventScheduler
 import kotlinx.serialization.Serializable
 
@@ -66,6 +66,23 @@ class SessionEngine(
             require(existing.text == reaction) {
                 "PLAYER_REACTION reactionId reused with different text"
             }
+            if (!existing.narrativeCommitted) {
+                val feedback = loaded.campaignState.game.session.visibleMechanicalFeedback
+                val narration = completeNarrativeProjection(
+                    campaignId = campaignId,
+                    committed = loaded,
+                    reaction = existing.text,
+                    feedback = feedback,
+                    trace = traceFrom(existing),
+                    actionId = actionId
+                )
+                return PlayerReactionReceipt(
+                    duplicate = true,
+                    result = null,
+                    narration = narration,
+                    feedback = feedback
+                )
+            }
             val visible = loaded.campaignState.game.session
             return PlayerReactionReceipt(
                 duplicate = true,
@@ -109,7 +126,10 @@ class SessionEngine(
                 actionId = actionId,
                 channel = "PLAYER_REACTION",
                 text = reaction,
-                ruleEvidenceRefs = evidenceRefs
+                ruleEvidenceRefs = evidenceRefs,
+                ruleEvidenceStatus = outcome.trace.status.name,
+                ruleTraceNote = outcome.trace.note,
+                narrativeCommitted = false
             ),
             rngRootSeed = rng.snapshot().rootSeed.toString(),
             rngStreams = snapshotRng(rng.snapshot()),
@@ -122,22 +142,16 @@ class SessionEngine(
         )
 
         // Barbara receives only the already committed state/result. It cannot return mutations.
+        // If narration fails after this point, the action log remains narrativeCommitted=false;
+        // retry with the same client id resumes only this projection and never re-runs mechanics.
         val committed = load(campaignId)
-        val narration = barbara.narrate(committed, reaction, outcome.feedback, outcome.trace)
-        val committedGame = committed.campaignState.game
-        val finalGame = committedGame.copy(
-            session = committedGame.session.copy(
-                phase = "ACTIVE",
-                visibleNarration = narration,
-                journal = committedGame.session.journal + narration
-            )
-        )
-        repository.commit(
+        val narration = completeNarrativeProjection(
             campaignId,
-            StateTransition(
-                "narrative-projection-${committedGame.revision}",
-                committed.campaignState.copy(game = finalGame)
-            )
+            committed,
+            reaction,
+            outcome.feedback,
+            outcome.trace,
+            actionId
         )
         return SessionResult(
             campaignId.value,
@@ -146,6 +160,56 @@ class SessionEngine(
             outcome.mechanicalMutation,
             outcome.trace
         )
+    }
+
+    private fun completeNarrativeProjection(
+        campaignId: CampaignId,
+        committed: CampaignEnvelope,
+        reaction: String,
+        feedback: String,
+        trace: RuleTrace,
+        actionId: String
+    ): String {
+        val narration = barbara.narrate(committed, reaction, feedback, trace)
+        val committedGame = committed.campaignState.game
+        val finalGame = committedGame.copy(
+            session = committedGame.session.copy(
+                phase = "ACTIVE",
+                visibleNarration = narration,
+                journal = committedGame.session.journal + narration
+            ),
+            actionLog = committedGame.actionLog.map { entry ->
+                if (entry.channel == "PLAYER_REACTION" && entry.actionId == actionId) {
+                    entry.copy(narrativeCommitted = true)
+                } else entry
+            }
+        )
+        repository.commit(
+            campaignId,
+            StateTransition(
+                "narrative-projection-${committedGame.revision}",
+                committed.campaignState.copy(game = finalGame)
+            )
+        )
+        return narration
+    }
+
+    private fun traceFrom(entry: ActionLogEntry): RuleTrace {
+        val status = runCatching { EvidenceStatus.valueOf(entry.ruleEvidenceStatus) }
+            .getOrElse { EvidenceStatus.MISSING_EVIDENCE }
+        val evidence = entry.ruleEvidenceRefs.mapNotNull { ref ->
+            val parts = ref.split('|', limit = 4)
+            if (parts.size != 4) return@mapNotNull null
+            val profile = runCatching { RuleProfile.valueOf(parts[1]) }.getOrNull()
+                ?: return@mapNotNull null
+            RuleEvidence(
+                ruleId = parts[0],
+                profile = profile,
+                source = parts[2],
+                location = parts[3]
+            )
+        }
+        return RuleTrace(status, evidence, entry.ruleTraceNote)
     }
 
     fun gmHelp(campaignId: CampaignId, question: String): GMHelpResult {
