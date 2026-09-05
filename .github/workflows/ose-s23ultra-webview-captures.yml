@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/ose-s23ultra-webview-captures.yml"
       - "ose/app-android/src/androidTest/kotlin/braseiro/ose/app/S23UltraWebViewCaptureTest.kt"
+      - "ose/web-ui-p1/**"
 
 permissions:
   contents: read
