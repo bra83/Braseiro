@@ -1,0 +1,66 @@
+name: BRASEIRO OSE S23 Ultra WebView Captures
+
+on:
+  push:
+    branches: [ose-s23ultra-webview-capture]
+    paths:
+      - ".github/workflows/ose-s23ultra-webview-captures.yml"
+      - "ose/app-android/src/androidTest/kotlin/braseiro/ose/app/S23UltraWebViewCaptureTest.kt"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Real Android WebView capture at S23 Ultra geometry
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ose-s23ultra-webview-capture
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: KVM availability gate
+        run: test -e /dev/kvm && sudo chmod 666 /dev/kvm
+      - name: Run real WebView and capture S23 Ultra geometry
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: >-
+            bash -lc 'set -euo pipefail; cd ose; chmod +x gradlew; mkdir -p build/reports/s23ultra-webview/captures;
+            adb shell settings put system accelerometer_rotation 0;
+            adb shell settings put system user_rotation 0;
+            adb shell wm size 1440x3088;
+            adb shell wm density 540;
+            adb shell wm size > build/reports/s23ultra-webview/wm-size.txt;
+            adb shell wm density > build/reports/s23ultra-webview/wm-density.txt;
+            adb shell getprop ro.product.model > build/reports/s23ultra-webview/emulator-model.txt;
+            adb shell getprop ro.build.version.release > build/reports/s23ultra-webview/android-version.txt;
+            adb shell dumpsys webviewupdate > build/reports/s23ultra-webview/webviewupdate.txt;
+            ./gradlew --no-daemon :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/s23ultra-webview/instrumentation.txt;
+            adb shell run-as braseiro.ose ls -l files/s23-captures > build/reports/s23ultra-webview/capture-list.txt;
+            for f in s23ultra_webview_01_session.png s23ultra_webview_02_map.png s23ultra_webview_03_sheet.png s23ultra_webview_04_company.png; do adb exec-out run-as braseiro.ose cat files/s23-captures/$f > build/reports/s23ultra-webview/captures/$f; test -s build/reports/s23ultra-webview/captures/$f; done;
+            file build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/png-file-info.txt;
+            sha256sum build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/captures.sha256;
+            printf "%s\n" "CAPTURE_ENGINE=ANDROID_WEBVIEW" "GEOMETRY=1440x3088" "DENSITY_DPI=540" "PHYSICAL_S23_ULTRA=NO_EMULATOR_GEOMETRY_ONLY" > build/reports/s23ultra-webview/PROVENANCE.txt'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BRASEIRO_OSE_S23ULTRA_REAL_WEBVIEW_CAPTURES
+          path: |
+            ose/build/reports/s23ultra-webview/**
+            ose/app-android/build/outputs/androidTest-results/**
+            ose/app-android/build/reports/androidTests/**
+          if-no-files-found: error
