@@ -160,8 +160,9 @@ class MainActivity : Activity() {
                     val payload = obj.getJSONObject("payload")
                     when (meta.type) {
                         "PlayerReaction" -> {
+                            val reactionId = payload.optString("reactionId", "").trim()
                             val text = payload.optString("text", "")
-                            val result = session.submitPlayerReaction(CAMPAIGN_ID, text)
+                            val receipt = session.submitPlayerReaction(CAMPAIGN_ID, text, reactionId)
                             val current = session.loadSession(CAMPAIGN_ID)
                             send(
                                 JSONObject()
@@ -169,10 +170,11 @@ class MainActivity : Activity() {
                                     .put(
                                         "payload",
                                         JSONObject()
-                                            .put("narration", result.narration)
-                                            .put("feedback", result.feedback)
+                                            .put("narration", receipt.narration)
+                                            .put("feedback", receipt.feedback)
                                             .put("committed", true)
-                                            .put("mechanicalMutation", result.mechanicalMutation)
+                                            .put("replayed", receipt.duplicate)
+                                            .put("mechanicalMutation", receipt.result?.mechanicalMutation ?: false)
                                             .put("stateHash", CanonicalStateHash.sha256(current))
                                             .put("timeTurns", current.campaignState.time.turns)
                                     )
