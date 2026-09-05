@@ -164,9 +164,12 @@ import kotlinx.serialization.Serializable
     val actionId: String,
     val channel: String,
     val text: String,
-    val ruleEvidenceRefs: List<String> = emptyList()
+    val ruleEvidenceRefs: List<String> = emptyList(),
+    val ruleEvidenceStatus: String = "",
+    val ruleTraceNote: String = "",
+    // Defaults true so action logs written by older schema versions are never replayed narratively.
+    val narrativeCommitted: Boolean = true
 )
-
 
 @Serializable data class RngStateSnapshot(
     val state: String,
