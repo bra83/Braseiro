@@ -22,6 +22,7 @@ import braseiro.ose.referee.RulesRefereeBoundary
 import braseiro.ose.session.SessionEngine
 import braseiro.ose.tts.android.AndroidTtsController
 import java.util.concurrent.Executors
+import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -208,12 +209,7 @@ class MainActivity : Activity() {
                             send(
                                 JSONObject()
                                     .put("type", "ViewState")
-                                    .put(
-                                        "payload",
-                                        JSONObject()
-                                            .put("timeTurns", current.campaignState.time.turns)
-                                            .put("position", current.campaignState.position.primary.toString())
-                                    )
+                                    .put("payload", buildPlayerViewState(current))
                             )
                         }
                     }
@@ -226,6 +222,85 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun buildPlayerViewState(current: CampaignEnvelope): JSONObject {
+        val state = current.campaignState
+        val position = when (val p = state.position.primary) {
+            is SpatialRef.Hex -> JSONObject()
+                .put("kind", "HEX")
+                .put("spatialEntityId", p.spatialEntityId)
+                .put("q", p.q)
+                .put("r", p.r)
+            is SpatialRef.Dungeon -> JSONObject()
+                .put("kind", "DUNGEON")
+                .put("spatialEntityId", p.spatialEntityId)
+                .put("nodeId", p.nodeId)
+            is SpatialRef.Settlement -> JSONObject()
+                .put("kind", "SETTLEMENT")
+                .put("spatialEntityId", p.spatialEntityId)
+                .put("anchorId", p.anchorId)
+            is SpatialRef.Scene -> JSONObject()
+                .put("kind", "SCENE")
+                .put("spatialEntityId", p.spatialEntityId)
+                .put("sceneId", p.sceneId)
+        }
+        val resources = JSONArray().also { array ->
+            state.resources.resourceFacts.sorted().forEach(array::put)
+        }
+        val characters = JSONArray().also { array ->
+            state.party.characterIds.forEach { id ->
+                state.game.characters[id]?.let { array.put(characterView(it)) }
+            }
+        }
+        return JSONObject()
+            .put("ruleProfile", current.ruleProfile.name)
+            .put("revision", state.game.revision)
+            .put("time", JSONObject()
+                .put("rounds", state.time.rounds)
+                .put("turns", state.time.turns)
+                .put("hours", state.time.hours)
+                .put("days", state.time.days))
+            .put("position", position)
+            .put("resources", resources)
+            .put("characters", characters)
+            .put("partyCharacterIds", JSONArray(state.party.characterIds))
+            .put("hexWorldAvailable", state.game.hexWorld != null)
+            .put("inventoryStructured", false)
+    }
+
+    private fun characterView(character: CharacterSnapshot): JSONObject {
+        val levels = JSONObject().also { o -> character.levelByClass.toSortedMap().forEach(o::put) }
+        val xp = JSONObject().also { o -> character.xpByClass.toSortedMap().forEach(o::put) }
+        return JSONObject()
+            .put("characterId", character.characterId)
+            .put("name", character.name)
+            .put("raceId", character.raceId)
+            .put("classIds", JSONArray(character.classIds))
+            .put("levelByClass", levels)
+            .put("xpByClass", xp)
+            .put("attributes", JSONObject()
+                .put("str", character.attributes.str)
+                .put("int", character.attributes.int)
+                .put("wis", character.attributes.wis)
+                .put("dex", character.attributes.dex)
+                .put("con", character.attributes.con)
+                .put("cha", character.attributes.cha))
+            .put("hitPoints", JSONObject()
+                .put("currentNumerator", character.hitPoints.currentNumerator)
+                .put("maxNumerator", character.hitPoints.maxNumerator)
+                .put("denominator", character.hitPoints.denominator)
+                .put("currentDisplay", character.hitPoints.display()))
+            .put("armorClassDescending", character.armorClassDescending)
+            .put("armorClassAscending", character.armorClassAscending)
+            .put("thac0", character.thac0)
+            .put("attackBonusAscending", character.attackBonusAscending)
+            .put("savingThrows", JSONObject()
+                .put("deathPoison", character.savingThrows.deathPoison)
+                .put("wands", character.savingThrows.wands)
+                .put("paralysisPetrification", character.savingThrows.paralysisPetrification)
+                .put("breath", character.savingThrows.breath)
+                .put("spellsRodsStaves", character.savingThrows.spellsRodsStaves))
     }
 
     private fun send(obj: JSONObject) {
