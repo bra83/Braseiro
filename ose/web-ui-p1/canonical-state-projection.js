@@ -22,6 +22,7 @@
     if(message&&message.type==='ViewState'){
       latest=message.payload||{};
       if(device.dataset.screen==='company')applyCompany(latest);
+      if(device.dataset.screen==='sheet')applySheet(latest);
     }
   };
 
@@ -55,6 +56,16 @@
     const cur=Number(hp.currentNumerator||0);
     const max=Number(hp.maxNumerator||0);
     return d===1?`${cur}/${max}`:`${cur}/${d} / ${max}/${d}`;
+  }
+
+  function totalXp(character){
+    const xp=character&&character.xpByClass?Object.values(character.xpByClass):[];
+    return xp.reduce((sum,value)=>sum+(Number(value)||0),0);
+  }
+
+  function primaryLevel(character){
+    const levels=character&&character.levelByClass?Object.values(character.levelByClass):[];
+    return levels.length?Math.max(...levels.map(value=>Number(value)||0)):0;
   }
 
   function applyCompany(payload){
@@ -104,13 +115,84 @@
     }
   }
 
+  function applySheet(payload){
+    const root=main.querySelector('.canonical-sheet');
+    if(!root)return;
+    const characters=Array.isArray(payload.characters)?payload.characters:[];
+    const character=characters[0]||null;
+    const topTitle=top.querySelector('.top-title');
+    const topSub=top.querySelector('.top-sub');
+
+    if(!character){
+      if(topTitle)topTitle.textContent='FICHA';
+      if(topSub)topSub.textContent=`${payload.ruleProfile||'OSE'} · nenhum personagem carregado`;
+      status.innerHTML=`<div class="sheet-level" style="grid-column:1/-1"><b>SEM PERSONAGEM</b><span>PartyState vazia · nenhum dado ilustrativo exibido</span></div>`;
+      root.innerHTML=`<section class="p0-card" style="margin:34px 7px 0;padding:22px 18px;background:rgba(238,213,171,.72)"><div class="section-kicker">FICHA CANÔNICA</div><h2 style="margin:12px 0 8px;font-size:17px">Nenhum personagem carregado</h2><p style="margin:0;font-size:9px;line-height:1.45">A ficha não mostra atributos, PV, CA, salvamentos, equipamento ou XP inventados. Crie, importe ou carregue um personagem válido para projetar o estado real aqui.</p><p style="margin:14px 0 0;font:600 7px/1.4 Arial,sans-serif;color:#725e4a">${safe(positionLabel(payload.position).replaceAll('&amp;','&'))}</p></section>`;
+      return;
+    }
+
+    if(topTitle)topTitle.textContent=`${character.name}`;
+    if(topSub)topSub.textContent=`${characterRole(character)} · estado canônico`;
+
+    const quick=status.querySelectorAll('.sheet-quick');
+    if(quick[1]){const b=quick[1].querySelector('b');if(b)b.textContent=String(character.armorClassDescending??'—');}
+    if(quick[2]){const b=quick[2].querySelector('b');if(b)b.textContent=String(character.armorClassAscending??'—');}
+    const level=status.querySelector('.sheet-level');
+    if(level){
+      const b=level.querySelector('b');
+      const span=level.querySelector('span');
+      if(b)b.textContent=`NÍV. ${primaryLevel(character)||'—'}`;
+      if(span)span.textContent=`XP ${totalXp(character).toLocaleString('pt-BR')}`;
+    }
+
+    const attrValues=[
+      ['str','FOR'],['int','INT'],['wis','SAB'],['dex','DES'],['con','CON'],['cha','CAR']
+    ];
+    root.querySelectorAll('.sheet-attr').forEach((node,index)=>{
+      const pair=attrValues[index];
+      if(!pair)return;
+      const value=node.querySelector('.sheet-attr-value b');
+      const mod=node.querySelector('.sheet-attr-value em');
+      const image=node.querySelector('.sheet-attr-image');
+      if(value)value.textContent=String(character.attributes&&character.attributes[pair[0]]!=null?character.attributes[pair[0]]:'—');
+      if(mod){mod.textContent='';mod.setAttribute('aria-label','modificador não projetado');}
+      if(image)image.alt=pair[1];
+    });
+
+    const hp=root.querySelector('.sheet-pv-box b');
+    if(hp)hp.textContent=`PV ${hpLabel(character)}`;
+    const progress=root.querySelectorAll('.sheet-progress small');
+    if(progress[0])progress[0].textContent=`XP ${totalXp(character).toLocaleString('pt-BR')}`;
+    if(progress[1])progress[1].textContent=`MOV. ${resourceValue(payload,'movement')}`;
+
+    const combatValues=root.querySelectorAll('.combat-line span b');
+    if(combatValues[0])combatValues[0].textContent=String(character.armorClassDescending??'—');
+    if(combatValues[1])combatValues[1].textContent=String(character.armorClassAscending??'—');
+    if(combatValues[2])combatValues[2].textContent=String(character.attackBonusAscending??'—');
+    if(combatValues[3])combatValues[3].textContent='NÃO REGISTRADA';
+    const combatNote=root.querySelector('.combat-block small');
+    if(combatNote)combatNote.textContent=`THAC0 ${character.thac0??'—'} · dados vindos do estado canônico`;
+
+    const saves=character.savingThrows||{};
+    const saveValues=[saves.deathPoison,saves.wands,saves.paralysisPetrification,saves.breath,saves.spellsRodsStaves];
+    root.querySelectorAll('.saves-block>div b').forEach((node,index)=>{node.textContent=String(saveValues[index]??'—');});
+
+    const inventory=root.querySelector('.inventory-parchment');
+    if(inventory){
+      inventory.innerHTML=`<h3>INVENTÁRIO</h3><p>Inventário estruturado ainda não está disponível neste estado.</p><p style="margin-top:12px;color:#725e4a">Nenhum item ilustrativo é tratado como dado real.</p>`;
+    }
+  }
+
   function requestForCurrentScreen(){
     const screen=device.dataset.screen||'';
     if(screen===lastRequestedScreen)return;
     lastRequestedScreen=screen;
-    if(screen==='company'){
-      if(latest)applyCompany(latest);
-      nativePost('ViewState',{surface:'company'});
+    if(screen==='company'||screen==='sheet'){
+      if(latest){
+        if(screen==='company')applyCompany(latest);
+        if(screen==='sheet')applySheet(latest);
+      }
+      nativePost('ViewState',{surface:screen});
     }
   }
 
