@@ -114,6 +114,47 @@ class MegaIntegrationTest {
     }
 
     @Test
+    fun `PLAYER_REACTION reactionId prevents duplicate mutation across engine recreation`() {
+        val repo = MemoryRepo()
+        val envelope = Fixtures.campaign("idempotency", RuleProfile.OSE_ADVANCED_FANTASY)
+        repo.create(envelope)
+
+        val firstEngine = SessionEngine(repo, RulesRefereeBoundary(), DeterministicBarbaraSupervisor())
+        val first = firstEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-1001")
+        assertFalse(first.duplicate)
+        assertNotNull(first.result)
+        val afterFirst = firstEngine.loadSession(envelope.campaignId)
+        assertEquals(1, afterFirst.campaignState.time.turns)
+        assertEquals(listOf("client:ui-1001"), afterFirst.campaignState.game.actionLog.map { it.actionId })
+        val firstHash = CanonicalStateHash.sha256(afterFirst)
+
+        val immediateRetry = firstEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-1001")
+        assertTrue(immediateRetry.duplicate)
+        assertNull(immediateRetry.result)
+        assertEquals(firstHash, CanonicalStateHash.sha256(firstEngine.loadSession(envelope.campaignId)))
+
+        val restoredEngine = SessionEngine(repo, RulesRefereeBoundary(), DeterministicBarbaraSupervisor())
+        val retryAfterRestore = restoredEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-1001")
+        assertTrue(retryAfterRestore.duplicate)
+        assertEquals(firstHash, CanonicalStateHash.sha256(restoredEngine.loadSession(envelope.campaignId)))
+
+        val conflictingReuse = assertFailsWith<IllegalArgumentException> {
+            restoredEngine.submitPlayerReaction(envelope.campaignId, "observar", "ui-1001")
+        }
+        assertTrue(conflictingReuse.message.orEmpty().contains("reused with different text"))
+        assertEquals(firstHash, CanonicalStateHash.sha256(restoredEngine.loadSession(envelope.campaignId)))
+
+        val distinct = restoredEngine.submitPlayerReaction(envelope.campaignId, "WAIT_TURN", "ui-1002")
+        assertFalse(distinct.duplicate)
+        val afterDistinct = restoredEngine.loadSession(envelope.campaignId)
+        assertEquals(2, afterDistinct.campaignState.time.turns)
+        assertEquals(
+            listOf("client:ui-1001", "client:ui-1002"),
+            afterDistinct.campaignState.game.actionLog.map { it.actionId }
+        )
+    }
+
+    @Test
     fun `procedural world settlement hundreds of NPCs and backup compose deterministically`() {
         val classicHex = HexWorldGeneratorV1.generate("world-c", 991u, RuleProfile.OSE_CLASSIC_FANTASY)
         val advancedHex = HexWorldGeneratorV1.generate("world-a", 991u, RuleProfile.OSE_ADVANCED_FANTASY)
