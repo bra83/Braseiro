@@ -1,11 +1,8 @@
 package braseiro.ose.app
 
-import android.graphics.Bitmap
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
@@ -17,18 +14,20 @@ import org.junit.runner.RunWith
 class S23UltraWebViewCaptureTest {
     @Test
     fun capturePrimaryScreensFromRealAndroidWebView() {
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        ui.executeShellCommand("mkdir -p /sdcard/s23-captures").close()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntilReady(scenario)
-            capture(scenario, "s23ultra_webview_01_session.png")
+            capture("s23ultra_webview_01_session.png")
 
             navigate(scenario, "map")
-            capture(scenario, "s23ultra_webview_02_map.png")
+            capture("s23ultra_webview_02_map.png")
 
             navigate(scenario, "sheet")
-            capture(scenario, "s23ultra_webview_03_sheet.png")
+            capture("s23ultra_webview_03_sheet.png")
 
             navigate(scenario, "company")
-            capture(scenario, "s23ultra_webview_04_company.png")
+            capture("s23ultra_webview_04_company.png")
         }
     }
 
@@ -51,18 +50,12 @@ class S23UltraWebViewCaptureTest {
         Thread.sleep(700)
     }
 
-    private fun capture(scenario: ActivityScenario<MainActivity>, fileName: String) {
+    private fun capture(fileName: String) {
         Thread.sleep(700)
-        val bitmap: Bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
-        assertTrue(bitmap.width > 0 && bitmap.height > 0)
-        scenario.onActivity { activity ->
-            val dir = File(activity.filesDir, "s23-captures")
-            check(dir.exists() || dir.mkdirs())
-            FileOutputStream(File(dir, fileName)).use { stream ->
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream))
-            }
-        }
-        bitmap.recycle()
+        val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("screencap -p /sdcard/s23-captures/$fileName")
+        pfd.close()
+        Thread.sleep(250)
     }
 
     private fun evaluateJavascript(
