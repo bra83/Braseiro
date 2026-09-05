@@ -43,6 +43,11 @@ jobs:
             bash -lc 'set -euo pipefail; cd ose; chmod +x gradlew; mkdir -p build/reports/s23ultra-webview/captures;
             adb shell settings put system accelerometer_rotation 0;
             adb shell settings put system user_rotation 0;
+            adb shell settings put secure immersive_mode_confirmations confirmed;
+            adb shell settings put global hide_error_dialogs 1;
+            adb shell settings put global show_first_crash_dialog 0;
+            adb shell settings put global show_restart_in_crash_dialog 0;
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null || true;
             adb shell wm size 1440x3088;
             adb shell wm density 540;
             adb shell wm size > build/reports/s23ultra-webview/wm-size.txt;
@@ -55,7 +60,7 @@ jobs:
             for f in s23ultra_webview_01_session.png s23ultra_webview_02_map.png s23ultra_webview_03_sheet.png s23ultra_webview_04_company.png; do adb exec-out cat /sdcard/s23-captures/$f > build/reports/s23ultra-webview/captures/$f; test -s build/reports/s23ultra-webview/captures/$f; done;
             file build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/png-file-info.txt;
             sha256sum build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/captures.sha256;
-            printf "%s\n" "CAPTURE_ENGINE=ANDROID_WEBVIEW" "GEOMETRY=1440x3088" "DENSITY_DPI=540" "PHYSICAL_S23_ULTRA=NO_EMULATOR_GEOMETRY_ONLY" > build/reports/s23ultra-webview/PROVENANCE.txt'
+            printf "%s\n" "CAPTURE_ENGINE=ANDROID_WEBVIEW" "GEOMETRY=1440x3088" "DENSITY_DPI=540" "PHYSICAL_S23_ULTRA=NO_EMULATOR_GEOMETRY_ONLY" "SYSTEM_OVERLAY_GUARD=ENABLED" > build/reports/s23ultra-webview/PROVENANCE.txt'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
