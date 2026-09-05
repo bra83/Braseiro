@@ -9,6 +9,40 @@
   const main=document.querySelector('#screen');
   const img=(src,cls='',alt='')=>`<img${cls?` class="${cls}"`:''} src="${src}" alt="${alt}" draggable="false">`;
   const nativePost=(type,payload)=>{if(!(window.BraseiroBridge&&typeof window.BraseiroBridge.postMessage==='function'))return false;window.BraseiroBridge.postMessage(JSON.stringify({version:1,type,payload}));return true;};
+  let pendingReaction=null;
+
+  const baseReceive=window.BraseiroReceive;
+  window.BraseiroReceive=(raw)=>{
+    let message=null;
+    try{message=typeof raw==='string'?JSON.parse(raw):raw;}catch(_){message=null;}
+    if(typeof baseReceive==='function')baseReceive(raw);
+    if(message&&message.type==='SessionUpdate'){
+      const acknowledged=pendingReaction;
+      pendingReaction=null;
+      const reaction=main.querySelector('#canonicalReaction');
+      if(reaction&&acknowledged&&reaction.value.trim()===acknowledged.text)reaction.value='';
+      syncPendingUi();
+    }else if(message&&message.type==='BridgeError'){
+      // Keep the same id after an ambiguous failure: mechanics may already have committed.
+      syncPendingUi();
+    }
+  };
+
+  function syncPendingUi(){
+    const button=main.querySelector('#canonicalSend');
+    const reaction=main.querySelector('#canonicalReaction');
+    if(!button||!reaction)return;
+    if(!pendingReaction){
+      button.textContent='ENVIAR';
+      button.removeAttribute('aria-busy');
+      reaction.removeAttribute('data-pending-reaction');
+      return;
+    }
+    const sameText=reaction.value.trim()===pendingReaction.text;
+    button.textContent=sameText?'REENVIAR':'AGUARDE';
+    button.setAttribute('aria-busy','true');
+    reaction.setAttribute('data-pending-reaction',pendingReaction.id);
+  }
 
   function canonicalHeader(title,subtitle){
     top.innerHTML=`${img(X+'001_logo_ose.png','brand','Old-School Essentials')}<div class="top-copy"><div class="top-title">${title}</div><div class="top-sub">${subtitle}</div></div><div class="visual-head-actions"><button class="icon-button" aria-label="Menu" data-inspection-only="true">${img(X+'002_icone_menu.png','','Menu')}</button><button class="icon-button" aria-label="Configurações" data-inspection-only="true">${img(X+'003_icone_configuracoes.png','','Configurações')}</button></div>`;
@@ -36,10 +70,21 @@
     </section>`;
 
     const reaction=main.querySelector('#canonicalReaction');
-    main.querySelector('#canonicalSend').addEventListener('click',()=>{const text=reaction.value.trim();if(!text)return;nativePost('PlayerReaction',{reactionId:'ui-'+Date.now(),text,surface:'ACTIVE'});});
+    reaction.addEventListener('input',syncPendingUi);
+    main.querySelector('#canonicalSend').addEventListener('click',()=>{
+      const text=reaction.value.trim();
+      if(!text)return;
+      if(pendingReaction&&pendingReaction.text!==text){syncPendingUi();return;}
+      const candidate=pendingReaction||{id:'ui-'+Date.now(),text};
+      if(nativePost('PlayerReaction',{reactionId:candidate.id,text:candidate.text,surface:'ACTIVE'})){
+        pendingReaction=candidate;
+        syncPendingUi();
+      }
+    });
     main.querySelector('#canonicalGmHelp').addEventListener('click',()=>nativePost('GMHelp',{question:reaction.value.trim()||'turn'}));
     main.querySelector('#canonicalTts').addEventListener('click',()=>{const visible=main.querySelector('.narration-text').innerText.trim();if(!nativePost('TtsCommand',{command:'play',visibleNarration:visible})&&'speechSynthesis' in window){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(visible);u.lang='pt-BR';speechSynthesis.speak(u);}});
     main.querySelectorAll('[data-shortcut-nav]').forEach(b=>b.addEventListener('click',()=>{const target=b.dataset.shortcutNav;const nav=document.querySelector(`[data-nav="${target}"]`);if(nav)nav.click();}));
+    syncPendingUi();
   }
 
   function terrainFor(col,row){
