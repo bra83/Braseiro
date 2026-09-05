@@ -1,5 +1,6 @@
 package braseiro.ose.app
 
+import android.os.ParcelFileDescriptor
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -14,12 +15,8 @@ import org.junit.runner.RunWith
 class S23UltraWebViewCaptureTest {
     @Test
     fun capturePrimaryScreensFromRealAndroidWebView() {
-        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
-        ui.executeShellCommand("mkdir -p /sdcard/s23-captures").close()
-        // Android's first-run immersive-mode education overlay is system UI, not app UI.
-        // Suppress it so screenshots are evidence of the WebView composition itself.
-        ui.executeShellCommand("settings put secure immersive_mode_confirmations confirmed").close()
-        Thread.sleep(250)
+        shell("mkdir -p /sdcard/s23-captures")
+        suppressSystemDialogs()
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntilReady(scenario)
@@ -35,6 +32,26 @@ class S23UltraWebViewCaptureTest {
             navigate(scenario, "company")
             capture("s23ultra_webview_04_company.png")
         }
+    }
+
+    private fun suppressSystemDialogs() {
+        // Evidence screenshots must contain the app only. Emulator launcher ANR/crash
+        // dialogs are host noise, not VTT UI, and invalidate a visual proof.
+        shell("settings put secure immersive_mode_confirmations confirmed")
+        shell("settings put global hide_error_dialogs 1")
+        shell("settings put global show_first_crash_dialog 0")
+        shell("settings put global show_restart_in_crash_dialog 0")
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
+        Thread.sleep(350)
+    }
+
+    private fun assertAppOwnsForeground() {
+        suppressSystemDialogs()
+        val focus = shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+        assertTrue(
+            "Capture blocked by system/foreign window: $focus",
+            focus.contains("braseiro.ose.app")
+        )
     }
 
     private fun waitUntilReady(scenario: ActivityScenario<MainActivity>) {
@@ -82,10 +99,14 @@ class S23UltraWebViewCaptureTest {
     private fun capture(fileName: String) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         Thread.sleep(500)
-        val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation
-            .executeShellCommand("screencap -p /sdcard/s23-captures/$fileName")
-        pfd.close()
+        assertAppOwnsForeground()
+        shell("screencap -p /sdcard/s23-captures/$fileName")
         Thread.sleep(250)
+    }
+
+    private fun shell(command: String): String {
+        val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
     }
 
     private fun evaluateJavascript(
