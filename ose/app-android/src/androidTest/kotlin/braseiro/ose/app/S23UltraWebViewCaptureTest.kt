@@ -1,9 +1,15 @@
 package braseiro.ose.app
 
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.view.PixelCopy
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.io.FileOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
@@ -15,28 +21,25 @@ import org.junit.runner.RunWith
 class S23UltraWebViewCaptureTest {
     @Test
     fun capturePrimaryScreensFromRealAndroidWebView() {
-        shell("mkdir -p /sdcard/s23-captures")
         suppressSystemDialogs()
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             waitUntilReady(scenario)
             waitForVisualScreen(scenario, "session")
-            capture("s23ultra_webview_01_session.png")
+            captureAppWindow(scenario, "s23ultra_webview_01_session.png")
 
             navigate(scenario, "map")
-            capture("s23ultra_webview_02_map.png")
+            captureAppWindow(scenario, "s23ultra_webview_02_map.png")
 
             navigate(scenario, "sheet")
-            capture("s23ultra_webview_03_sheet.png")
+            captureAppWindow(scenario, "s23ultra_webview_03_sheet.png")
 
             navigate(scenario, "company")
-            capture("s23ultra_webview_04_company.png")
+            captureAppWindow(scenario, "s23ultra_webview_04_company.png")
         }
     }
 
     private fun suppressSystemDialogs() {
-        // Evidence screenshots must contain the app only. Emulator launcher ANR/crash
-        // dialogs are host noise, not VTT UI, and invalidate a visual proof.
         shell("settings put secure immersive_mode_confirmations confirmed")
         shell("settings put global hide_error_dialogs 1")
         shell("settings put global show_first_crash_dialog 0")
@@ -47,8 +50,6 @@ class S23UltraWebViewCaptureTest {
 
     private fun assertAppOwnsForeground() {
         suppressSystemDialogs()
-        // UiAutomation.executeShellCommand does not execute shell metacharacters such as pipes.
-        // Read the raw window dump and parse focus markers in-process instead.
         val windowDump = shell("dumpsys window")
         val focus = windowDump.lineSequence()
             .filter {
@@ -100,17 +101,47 @@ class S23UltraWebViewCaptureTest {
             activity.webViewForTest().requestLayout()
         }
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        // Android WebView's compositor can commit a frame after the DOM/evaluateJavascript callback.
-        // This delay is evidence synchronization, not a substitute for the WebView test itself.
         Thread.sleep(1800)
     }
 
-    private fun capture(fileName: String) {
+    private fun captureAppWindow(
+        scenario: ActivityScenario<MainActivity>,
+        fileName: String
+    ) {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         Thread.sleep(500)
         assertAppOwnsForeground()
-        shell("screencap -p /sdcard/s23-captures/$fileName")
-        Thread.sleep(250)
+
+        val latch = CountDownLatch(1)
+        var copyResult = PixelCopy.ERROR_UNKNOWN
+        var saved = false
+        scenario.onActivity { activity ->
+            val decor = activity.window.decorView
+            val width = decor.width
+            val height = decor.height
+            assertTrue("Window has invalid capture size ${width}x${height}", width > 0 && height > 0)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            PixelCopy.request(
+                activity.window,
+                bitmap,
+                { result ->
+                    copyResult = result
+                    if (result == PixelCopy.SUCCESS) {
+                        val dir = File(activity.filesDir, "s23-captures")
+                        dir.mkdirs()
+                        FileOutputStream(File(dir, fileName)).use { out ->
+                            saved = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                    }
+                    bitmap.recycle()
+                    latch.countDown()
+                },
+                Handler(Looper.getMainLooper())
+            )
+        }
+        assertTrue("PixelCopy callback timed out for $fileName", latch.await(8, TimeUnit.SECONDS))
+        assertEquals("PixelCopy failed for $fileName", PixelCopy.SUCCESS, copyResult)
+        assertTrue("PNG write failed for $fileName", saved)
     }
 
     private fun shell(command: String): String {
