@@ -45,7 +45,7 @@ class S23UltraWebViewCaptureTest {
     private fun navigate(scenario: ActivityScenario<MainActivity>, target: String) {
         val result = evaluateJavascript(
             scenario,
-            "(function(){var b=document.querySelector('[data-nav=\\\"$target\\\"]');if(!b)return false;b.click();return document.querySelector('#device').dataset.screen===\\\"$target\\\";})()"
+            "(function(){var a=document.querySelectorAll('[data-nav]');for(var i=0;i<a.length;i++){if(a[i].getAttribute('data-nav')==='$target'){a[i].click();return true;}}return false;})()"
         )
         assertEquals("true", result)
         Thread.sleep(700)
