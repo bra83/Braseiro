@@ -23,6 +23,7 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation(project(":core-model"))
     implementation(project(":core-rng"))
+    implementation(project(":map-core"))
     implementation(project(":persistence-api"))
     implementation(project(":persistence-room"))
     implementation(project(":rules-api"))
