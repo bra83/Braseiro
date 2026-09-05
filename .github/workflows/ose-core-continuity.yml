@@ -1,0 +1,47 @@
+name: BRASEIRO OSE Core Continuity
+
+on:
+  push:
+    branches: [ose-s23ultra-webview-capture]
+    paths:
+      - ".github/workflows/ose-core-continuity.yml"
+      - "ose/session-engine/**"
+      - "ose/app-android/src/main/**"
+      - "ose/integration-tests/**"
+      - "ose/core-model/**"
+      - "ose/persistence-api/**"
+      - "ose/persistence-room/**"
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core playable-loop regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ose-s23ultra-webview-capture
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Unit and integration regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ose
+          chmod +x gradlew
+          ./gradlew --no-daemon \
+            :core-model:test \
+            :persistence-room:test \
+            :integration-tests:test \
+            :app-android:testDebugUnitTest \
+            --stacktrace
