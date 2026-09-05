@@ -56,11 +56,11 @@ jobs:
             adb shell getprop ro.build.version.release > build/reports/s23ultra-webview/android-version.txt;
             adb shell dumpsys webviewupdate > build/reports/s23ultra-webview/webviewupdate.txt;
             ./gradlew --no-daemon :app-android:connectedDebugAndroidTest --stacktrace 2>&1 | tee build/reports/s23ultra-webview/instrumentation.txt;
-            adb shell ls -l /sdcard/s23-captures > build/reports/s23ultra-webview/capture-list.txt;
-            for f in s23ultra_webview_01_session.png s23ultra_webview_02_map.png s23ultra_webview_03_sheet.png s23ultra_webview_04_company.png; do adb exec-out cat /sdcard/s23-captures/$f > build/reports/s23ultra-webview/captures/$f; test -s build/reports/s23ultra-webview/captures/$f; done;
+            adb shell run-as braseiro.ose.app ls -l files/s23-captures > build/reports/s23ultra-webview/capture-list.txt;
+            for f in s23ultra_webview_01_session.png s23ultra_webview_02_map.png s23ultra_webview_03_sheet.png s23ultra_webview_04_company.png; do adb exec-out run-as braseiro.ose.app cat files/s23-captures/$f > build/reports/s23ultra-webview/captures/$f; test -s build/reports/s23ultra-webview/captures/$f; done;
             file build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/png-file-info.txt;
             sha256sum build/reports/s23ultra-webview/captures/*.png > build/reports/s23ultra-webview/captures.sha256;
-            printf "%s\n" "CAPTURE_ENGINE=ANDROID_WEBVIEW" "GEOMETRY=1440x3088" "DENSITY_DPI=540" "PHYSICAL_S23_ULTRA=NO_EMULATOR_GEOMETRY_ONLY" "SYSTEM_OVERLAY_GUARD=ENABLED" > build/reports/s23ultra-webview/PROVENANCE.txt'
+            printf "%s\n" "CAPTURE_ENGINE=ANDROID_WEBVIEW_PIXELCOPY_APP_WINDOW" "GEOMETRY=1440x3088" "DENSITY_DPI=540" "PHYSICAL_S23_ULTRA=NO_EMULATOR_GEOMETRY_ONLY" "SYSTEM_OVERLAY_EXCLUDED=PIXELCOPY_WINDOW" > build/reports/s23ultra-webview/PROVENANCE.txt'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
