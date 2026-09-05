@@ -47,7 +47,16 @@ class S23UltraWebViewCaptureTest {
 
     private fun assertAppOwnsForeground() {
         suppressSystemDialogs()
-        val focus = shell("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+        // UiAutomation.executeShellCommand does not execute shell metacharacters such as pipes.
+        // Read the raw window dump and parse focus markers in-process instead.
+        val windowDump = shell("dumpsys window")
+        val focus = windowDump.lineSequence()
+            .filter {
+                it.contains("mCurrentFocus") ||
+                    it.contains("mFocusedApp") ||
+                    it.contains("topResumedActivity")
+            }
+            .joinToString("\n")
         assertTrue(
             "Capture blocked by system/foreign window: $focus",
             focus.contains("braseiro.ose.app")
