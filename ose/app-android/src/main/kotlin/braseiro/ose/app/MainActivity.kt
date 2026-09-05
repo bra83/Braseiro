@@ -45,7 +45,9 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        hideSystemUi()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        }
 
         db = Room.databaseBuilder(
             applicationContext,
@@ -76,6 +78,7 @@ class MainActivity : Activity() {
             addJavascriptInterface(BridgeEndpoint(), "BraseiroBridge")
         }
         setContentView(webView)
+        webView.post { hideSystemUi() }
 
         io.execute {
             bootstrapIfMissing()
@@ -88,12 +91,10 @@ class MainActivity : Activity() {
     @Suppress("DEPRECATION")
     private fun hideSystemUi() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.systemBars())
-                controller.systemBarsBehavior =
-                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
+            val controller = window.decorView.windowInsetsController ?: return
+            controller.hide(WindowInsets.Type.systemBars())
+            controller.systemBarsBehavior =
+                android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         } else {
             window.decorView.systemUiVisibility =
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
@@ -107,7 +108,7 @@ class MainActivity : Activity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) hideSystemUi()
+        if (hasFocus && window.decorView.isAttachedToWindow) hideSystemUi()
     }
 
     private fun bootstrapIfMissing() {
